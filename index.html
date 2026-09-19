@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MUSEA — Hệ thống quản lý bảo tàng</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <section class="auth-screen" id="auth-screen">
+    <div class="auth-visual">
+      <div class="auth-brand"><div class="brand-mark">M</div><strong>MUSEA</strong></div>
+      <div class="auth-quote"><span>“</span><h1>Giữ gìn ký ức.<br><em>Kết nối tương lai.</em></h1><p>Nền tảng quản lý di sản thông minh dành cho những câu chuyện trường tồn.</p></div>
+      <div class="auth-visual-footer"><span>BẢO TÀNG LỊCH SỬ QUỐC GIA</span><span>EST. 1958</span></div>
+    </div>
+    <div class="auth-form-wrap">
+      <form class="auth-form" id="login-form">
+        <div class="auth-mobile-brand"><div class="brand-mark">M</div><strong>MUSEA</strong></div>
+        <p class="eyebrow">CỔNG QUẢN LÝ BẢO TÀNG</p><h2>Chào mừng trở lại</h2><p class="auth-subtitle">Đăng nhập để tiếp tục vào không gian làm việc của bạn.</p>
+        <div class="role-switch" role="tablist"><button type="button" class="role-tab active" data-role="admin">Quản trị viên</button><button type="button" class="role-tab" data-role="guest">Khách tham quan</button></div>
+        <label>Email hoặc tên đăng nhập<input id="login-identity" name="identity" type="text" placeholder="Nhập email của bạn" autocomplete="username" required></label>
+        <label>Mật khẩu<div class="password-field"><input id="login-password" name="password" type="password" placeholder="Nhập mật khẩu" autocomplete="current-password" required><button type="button" id="toggle-password" aria-label="Hiện mật khẩu">◉</button></div></label>
+        <div class="form-options"><label class="checkbox-label"><input type="checkbox" id="remember-me"> Ghi nhớ đăng nhập</label><a href="#" id="forgot-password">Quên mật khẩu?</a></div>
+        <p class="login-error" id="login-error" role="alert"></p><button class="primary-btn auth-submit" type="submit">Đăng nhập <span>→</span></button>
+        <p class="demo-hint">Tài khoản demo: <b>admin@musea.vn</b> / <b>Musea@2026</b></p>
+      </form>
+    </div>
+  </section>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">M</div><div><strong>MUSEA</strong><span>Heritage intelligence</span></div></div>
+      <div class="profile-chip"><div class="avatar" id="sidebar-avatar">NH</div><div><strong id="sidebar-name">Nguyễn Hà</strong><span id="sidebar-role">Quản trị viên</span></div><span class="status-dot"></span></div>
+      <nav class="main-nav" aria-label="Điều hướng chính">
+        <p class="nav-label">Không gian làm việc</p>
+        <button class="nav-item active" data-view="overview"><span class="nav-icon">▦</span>Tổng quan</button>
+        <button class="nav-item" data-view="collections" data-roles="admin"><span class="nav-icon">◈</span>Hiện vật &amp; bộ sưu tập</button>
+        <button class="nav-item" data-view="artifact-info" data-roles="guest"><span class="nav-icon">◈</span>Thông tin hiện vật</button>
+        <button class="nav-item" data-view="tickets" data-roles="guest"><span class="nav-icon">▣</span>Đặt vé online</button>
+        <button class="nav-item" data-view="guest-payments" data-roles="guest"><span class="nav-icon">₫</span>Thanh toán &amp; lịch sử vé</button>
+        <button class="nav-item" data-view="visitors" data-roles="admin"><span class="nav-icon">♙</span>Khách tham quan</button>
+        <button class="nav-item" data-view="ticket-customers" data-roles="admin"><span class="nav-icon">▣</span>Khách hàng &amp; vé</button>
+        <button class="nav-item" data-view="payment-history" data-roles="admin"><span class="nav-icon">₫</span>Lịch sử nhận tiền</button>
+        <button class="nav-item" data-view="exhibitions"><span class="nav-icon">◫</span>Triển lãm</button>
+        <button class="nav-item" data-view="analytics" data-roles="admin"><span class="nav-icon">◒</span>Phân tích dữ liệu</button>
+        <p class="nav-label second">Hệ thống</p>
+        <button class="nav-item" data-view="ai"><span class="nav-icon sparkle">✦</span>Trợ lý MuseAI <em>Mới</em></button>
+        <button class="nav-item" data-view="settings" data-roles="admin"><span class="nav-icon">⚙</span>Cài đặt</button>
+      </nav>
+      <div class="sidebar-footer"><div class="help-icon">?</div><div><strong>Cần hỗ trợ?</strong><span>Trung tâm trợ giúp</span></div><span>↗</span></div>
+      <button class="logout-link" id="sidebar-logout"><span>↪</span> Đăng xuất tài khoản</button>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar"><button class="mobile-menu" aria-label="Mở menu">☰</button><div class="breadcrumbs"><span>Bảo tàng Lịch sử Quốc gia</span><b>/</b><strong id="breadcrumb">Tổng quan</strong></div><div class="top-actions"><button class="icon-button" title="Thông báo">♢<i></i></button><div class="divider"></div><button class="user-mini" id="logout-button" title="Đăng xuất"><span id="top-avatar">NH</span><span id="top-name">Nguyễn Hà</span><b>⌄</b></button></div></header>
+      <div class="page-wrap" id="page-content"></div>
+    </main>
+  </div>
+  <div class="toast" id="toast">Đã cập nhật thành công</div>
+  <script src="app.js"></script>
+</body>
+</html>

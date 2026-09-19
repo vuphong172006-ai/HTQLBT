@@ -1,0 +1,22 @@
+{
+  "museum": { "id": "musea-001", "name": "Bảo tàng Lịch sử Quốc gia", "city": "Hà Nội", "founded": 1958 },
+  "artifacts": [
+    { "id": "ART-0234", "name": "Trống đồng Ngọc Lũ", "period": "Đông Sơn", "year": "TK III TCN", "category": "Khảo cổ", "status": "Trưng bày", "image": "🥁", "imageUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/Ngoc%20Lu.jpg" },
+    { "id": "ART-0189", "name": "Tượng Phật Đồng Dương", "period": "Champa", "year": "TK IX", "category": "Điêu khắc", "status": "Bảo quản", "image": "🗿", "imageUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/Buddha%2C%20T%C6%B0%E1%BB%A3ng%20Ph%E1%BA%ADt%20%C4%90%E1%BB%93ng%20D%C6%B0%C6%A1ng%2C%20the%20Museum%20of%20Vietnamese%20History.jpg" },
+    { "id": "ART-0456", "name": "Mộc bản triều Nguyễn", "period": "Nguyễn", "year": "1802 - 1945", "category": "Tư liệu", "status": "Trưng bày", "image": "📜", "imageUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/Woodblocks%20of%20the%20Nguy%E1%BB%85n%20Dynasty%2003.jpg" },
+    { "id": "ART-0312", "name": "Ấm tử sa Chu Nê", "period": "Lê sơ", "year": "TK XV", "category": "Gốm sứ", "status": "Đang nghiên cứu", "image": "🏺", "imageUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/Yixing%20ware%20teapot%20and%20Lapsang%20tea.jpg" },
+    { "id": "ART-0520", "name": "Trống đồng Đông Sơn", "period": "Đông Sơn", "year": "TK II TCN", "category": "Khảo cổ", "status": "Trưng bày", "image": "🥁", "imageUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/Dong%20Son%20drums.jpg" },
+    { "id": "ART-0678", "name": "Tượng thần Shiva Champa", "period": "Champa", "year": "TK VIII", "category": "Điêu khắc", "status": "Bảo quản", "image": "🪨", "imageUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/T%C6%B0%E1%BB%A3ng%20Ph%E1%BA%ADt%20Ch%C4%83m.jpg" },
+    { "id": "ART-0741", "name": "Tượng Phật đồng cổ", "period": "Phù Nam", "year": "TK VIII - IX", "category": "Điêu khắc", "status": "Trưng bày", "image": "🗿", "imageUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/Bronze%20Buddha%20%288%E2%80%939th%20century%29%2C%20Museum%20of%20Vietnamese%20History%2C%20Ho%20Chi%20Minh%20City%20-%2020121014.JPG" },
+    { "id": "ART-0815", "name": "Mộc bản Ngự chế", "period": "Nguyễn", "year": "TK XIX", "category": "Tư liệu", "status": "Đang nghiên cứu", "image": "📜", "imageUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/Woodblocks%20of%20the%20Nguy%E1%BB%85n%20Dynasty%2001.jpg" },
+    { "id": "ART-0933", "name": "Ấm đất Nghi Hưng cổ", "period": "Thanh", "year": "TK XVIII", "category": "Gốm sứ", "status": "Trưng bày", "image": "🫖", "imageUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/YixingClayTeapotByChenMingyuanOfQingDynasty-TianqingClay.jpg" },
+    { "id": "ART-1042", "name": "Phù điêu vũ nữ Apsara", "period": "Champa", "year": "TK X", "category": "Điêu khắc", "status": "Bảo quản", "image": "🧱", "imageUrl": "https://commons.wikimedia.org/wiki/Special:FilePath/Champa%20Bronze%20%289980585726%29.jpg" }
+  ],
+  "visitors": { "today": 1248, "month": 28460, "satisfaction": 4.8, "returnRate": 32 },
+  "exhibitions": [
+    { "name": "Dòng chảy Văn Lang", "visitors": 8420, "progress": 78, "color": "terracotta" },
+    { "name": "Nghệ thuật Champa", "visitors": 6190, "progress": 61, "color": "gold" },
+    { "name": "Di sản Ký ức", "visitors": 3850, "progress": 43, "color": "green" }
+  ],
+  "ai": { "model": "MuseAI v2.4", "lastSync": "2026-09-07T08:30:00+07:00", "accuracy": 96.4 }
+}
