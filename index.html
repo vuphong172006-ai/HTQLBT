@@ -25,7 +25,20 @@
         <label>Mật khẩu<div class="password-field"><input id="login-password" name="password" type="password" placeholder="Nhập mật khẩu" autocomplete="current-password" required><button type="button" id="toggle-password" aria-label="Hiện mật khẩu">◉</button></div></label>
         <div class="form-options"><label class="checkbox-label"><input type="checkbox" id="remember-me"> Ghi nhớ đăng nhập</label><a href="#" id="forgot-password">Quên mật khẩu?</a></div>
         <p class="login-error" id="login-error" role="alert"></p><button class="primary-btn auth-submit" type="submit">Đăng nhập <span>→</span></button>
+        <p class="auth-switch">Chưa có tài khoản khách? <button type="button" class="text-link" id="show-register">Đăng ký ngay</button></p>
         <p class="demo-hint">Tài khoản demo: <b>admin@musea.vn</b> / <b>Musea@2026</b></p>
+      </form>
+
+      <form class="auth-form hidden" id="register-form">
+        <div class="auth-mobile-brand"><div class="brand-mark">M</div><strong>MUSEA</strong></div>
+        <p class="eyebrow">TÀI KHOẢN KHÁCH THAM QUAN</p><h2>Đăng ký tài khoản</h2><p class="auth-subtitle">Tạo tài khoản để đặt vé, thanh toán và xem lịch sử tham quan.</p>
+        <label>Họ và tên<input id="register-name" name="name" type="text" placeholder="Nguyễn Văn A" autocomplete="name" required></label>
+        <label>Email<input id="register-email" name="email" type="email" placeholder="email@example.com" autocomplete="email" required></label>
+        <label>Mật khẩu<div class="password-field"><input id="register-password" name="password" type="password" placeholder="Tạo mật khẩu" autocomplete="new-password" required><button type="button" id="toggle-register-password" aria-label="Hiện mật khẩu">◉</button></div></label>
+        <label>Xác nhận mật khẩu<div class="password-field"><input id="register-confirm-password" name="confirmPassword" type="password" placeholder="Nhập lại mật khẩu" autocomplete="new-password" required><button type="button" id="toggle-register-confirm-password" aria-label="Hiện mật khẩu">◉</button></div></label>
+        <p class="login-error" id="register-error" role="alert"></p>
+        <button class="primary-btn auth-submit" type="submit">Tạo tài khoản <span>→</span></button>
+        <p class="auth-switch">Đã có tài khoản? <button type="button" class="text-link" id="show-login">Đăng nhập</button></p>
       </form>
     </div>
   </section>

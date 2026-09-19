@@ -43,9 +43,44 @@ const accounts = {
   admin: { identity: 'admin@musea.vn', password: 'Musea@2026', name: 'Nguyễn Hà', initials: 'NH', label: 'Quản trị viên' },
   guest: { identity: 'guest@musea.vn', password: 'Guest@2026', name: 'Minh Anh', initials: 'MA', label: 'Khách tham quan' }
 };
+const guestAccountStorageKey = 'musea_guest_accounts';
+let customerAccounts = [];
 let currentUser = null;
 let selectedRole = 'admin';
 let pendingTicket = null;
+
+function getStoredGuestAccounts() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(guestAccountStorageKey) || '[]');
+    return Array.isArray(saved) ? saved : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function saveGuestAccounts() {
+  localStorage.setItem(guestAccountStorageKey, JSON.stringify(customerAccounts));
+}
+
+function getGuestAccounts() {
+  return [accounts.guest, ...customerAccounts.map(account => ({ ...account, role: 'guest', label: 'Khách tham quan' }))];
+}
+
+function getInitials(name) {
+  return name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase() || 'KH';
+}
+
+function findAccountByCredentials(role, identity, password) {
+  const normalizedIdentity = identity.toLowerCase();
+  if (role === 'admin') {
+    const adminAccount = accounts.admin;
+    return normalizedIdentity === adminAccount.identity && password === adminAccount.password ? { ...adminAccount, role: 'admin' } : null;
+  }
+  const guestAccount = getGuestAccounts().find(account => account.identity.toLowerCase() === normalizedIdentity && account.password === password);
+  return guestAccount ? { ...guestAccount, role: 'guest' } : null;
+}
+
+customerAccounts = getStoredGuestAccounts();
 
 function showAuth() {
   document.getElementById('auth-screen').classList.remove('hidden');
@@ -65,21 +100,87 @@ function enterApp(user) {
   render('overview');
 }
 
+function switchAuthForm(view) {
+  const isRegister = view === 'register';
+  document.getElementById('login-form').classList.toggle('hidden', isRegister);
+  document.getElementById('register-form').classList.toggle('hidden', !isRegister);
+  document.getElementById('login-error').textContent = '';
+  document.getElementById('register-error').textContent = '';
+  if (isRegister) {
+    selectedRole = 'guest';
+    document.querySelectorAll('.role-tab').forEach(tab => tab.classList.toggle('active', tab.dataset.role === 'guest'));
+  }
+}
+
 function bindAuth() {
   document.querySelectorAll('.role-tab').forEach(tab => tab.addEventListener('click', () => {
     selectedRole = tab.dataset.role;
     document.querySelectorAll('.role-tab').forEach(item => item.classList.toggle('active', item === tab));
     document.getElementById('login-identity').placeholder = selectedRole === 'admin' ? 'Nhập email quản trị viên' : 'Nhập email khách tham quan';
     document.querySelector('.demo-hint').innerHTML = selectedRole === 'admin' ? 'Tài khoản demo: <b>admin@musea.vn</b> / <b>Musea@2026</b>' : 'Tài khoản demo: <b>guest@musea.vn</b> / <b>Guest@2026</b>';
+    if (!document.getElementById('register-form').classList.contains('hidden')) {
+      switchAuthForm('login');
+    }
   }));
   document.getElementById('toggle-password').addEventListener('click', () => { const input = document.getElementById('login-password'); input.type = input.type === 'password' ? 'text' : 'password'; });
+  document.getElementById('toggle-register-password').addEventListener('click', () => { const input = document.getElementById('register-password'); input.type = input.type === 'password' ? 'text' : 'password'; });
+  document.getElementById('toggle-register-confirm-password').addEventListener('click', () => { const input = document.getElementById('register-confirm-password'); input.type = input.type === 'password' ? 'text' : 'password'; });
+  document.getElementById('show-register').addEventListener('click', () => switchAuthForm('register'));
+  document.getElementById('show-login').addEventListener('click', () => switchAuthForm('login'));
+  document.getElementById('register-form').addEventListener('submit', event => {
+    event.preventDefault();
+    const name = document.getElementById('register-name').value.trim();
+    const email = document.getElementById('register-email').value.trim().toLowerCase();
+    const password = document.getElementById('register-password').value;
+    const confirmPassword = document.getElementById('register-confirm-password').value;
+    const error = document.getElementById('register-error');
+
+    if (!name || !email || !password || !confirmPassword) {
+      error.textContent = 'Vui lòng điền đầy đủ thông tin để đăng ký.';
+      return;
+    }
+    if (password.length < 6) {
+      error.textContent = 'Mật khẩu phải có ít nhất 6 ký tự.';
+      return;
+    }
+    if (password !== confirmPassword) {
+      error.textContent = 'Mật khẩu xác nhận không khớp.';
+      return;
+    }
+    if (getGuestAccounts().some(account => account.identity.toLowerCase() === email)) {
+      error.textContent = 'Email này đã được đăng ký. Vui lòng sử dụng email khác hoặc đăng nhập.';
+      return;
+    }
+
+    const newGuestAccount = {
+      identity: email,
+      password,
+      name,
+      initials: getInitials(name),
+      label: 'Khách tham quan'
+    };
+
+    customerAccounts.push(newGuestAccount);
+    saveGuestAccounts();
+    document.getElementById('register-form').reset();
+    document.getElementById('login-identity').value = email;
+    document.getElementById('login-password').value = password;
+    switchAuthForm('login');
+    document.getElementById('login-error').textContent = 'Đăng ký tài khoản thành công. Bạn có thể đăng nhập ngay.';
+    showToast('Đăng ký tài khoản khách thành công.');
+  });
   document.getElementById('login-form').addEventListener('submit', event => {
     event.preventDefault();
     const identity = document.getElementById('login-identity').value.trim().toLowerCase();
     const password = document.getElementById('login-password').value;
-    const account = accounts[selectedRole];
+    const account = findAccountByCredentials(selectedRole, identity, password);
     const error = document.getElementById('login-error');
-    if (identity !== account.identity || password !== account.password) { error.textContent = 'Thông tin đăng nhập chưa chính xác. Hãy thử tài khoản demo bên dưới.'; return; }
+    if (!account) {
+      error.textContent = selectedRole === 'admin'
+        ? 'Thông tin đăng nhập chưa chính xác. Hãy thử tài khoản demo bên dưới.'
+        : 'Email hoặc mật khẩu không đúng. Nếu chưa có tài khoản, hãy đăng ký trước.';
+      return;
+    }
     error.textContent = '';
     enterApp({ ...account, role: selectedRole });
     showToast(`Đăng nhập thành công với quyền ${account.label.toLowerCase()}.`);
@@ -125,7 +226,15 @@ function bindGuestPaymentInteractions() { const form = document.getElementById('
 function bindTicketInteractions() { const form = document.getElementById('ticket-form'); if (!form) return; const state = { adult: 1, child: 0 }; const updateSummary = () => { const exhibition = document.getElementById('ticket-exhibition').value; const date = document.getElementById('ticket-date').value; const slot = document.getElementById('ticket-slot').value; const totalPeople = state.adult + state.child; document.getElementById('adult-count').textContent = state.adult; document.getElementById('child-count').textContent = state.child; document.getElementById('summary-exhibition').textContent = exhibition; document.getElementById('summary-datetime').textContent = date ? `${new Date(`${date}T00:00:00`).toLocaleDateString('vi-VN')} · ${slot}` : 'Chọn ngày tham quan'; document.getElementById('summary-quantity').textContent = `${totalPeople} người (${state.adult} người lớn, ${state.child} trẻ em)`; document.getElementById('ticket-total').textContent = `${(state.adult * 80000 + state.child * 40000).toLocaleString('vi-VN')}đ`; }; document.querySelectorAll('[data-step]').forEach(button => button.addEventListener('click', () => { const type = button.dataset.step; state[type] = Math.max(type === 'adult' ? 1 : 0, Math.min(10, state[type] + Number(button.dataset.delta))); updateSummary(); })); ['ticket-exhibition', 'ticket-date', 'ticket-slot'].forEach(id => document.getElementById(id).addEventListener('change', updateSummary)); const dateInput = document.getElementById('ticket-date'); dateInput.min = new Date().toISOString().split('T')[0]; form.addEventListener('submit', event => { event.preventDefault(); const code = `MUS-${Date.now().toString().slice(-6)}`; document.getElementById('booking-code').textContent = code; document.getElementById('booking-success').classList.add('show'); document.getElementById('booking-success').scrollIntoView({ behavior: 'smooth', block: 'center' }); showToast('Đã xác nhận đặt vé online.'); }); document.getElementById('new-booking').addEventListener('click', () => { document.getElementById('booking-success').classList.remove('show'); form.reset(); state.adult = 1; state.child = 0; updateSummary(); }); updateSummary(); }
 function bindBookingPaymentBridge() { document.addEventListener('submit', event => { if (event.target.id === 'ticket-form') { if (!event.target.checkValidity()) return; event.preventDefault(); event.stopImmediatePropagation(); const code = `MUS-${Date.now().toString().slice(-6)}`; pendingTicket = { code, exhibition: document.getElementById('ticket-exhibition').value, amount: document.getElementById('ticket-total').textContent }; render('guest-payments'); const select = document.getElementById('payment-ticket'); const option = document.createElement('option'); option.value = `${pendingTicket.exhibition}|${pendingTicket.code}|${pendingTicket.amount}`; option.textContent = `${pendingTicket.code} · ${pendingTicket.exhibition} · ${pendingTicket.amount} · Chờ thanh toán`; select.prepend(option); select.value = option.value; select.dispatchEvent(new Event('change')); showToast('Đã giữ vé. Vui lòng hoàn tất thanh toán online.'); } else if (event.target.id === 'online-payment-form') { pendingTicket = null; } }, true); }
 function handleChat(e) { e.preventDefault(); const input = document.getElementById('chat-text'); const value = input.value.trim(); if (!value) return; const messages = document.getElementById('messages'); messages.insertAdjacentHTML('beforeend', `<div class="message user"><div><p>${value}</p><time>Vừa xong</time></div></div>`); input.value = ''; setTimeout(() => { messages.insertAdjacentHTML('beforeend', `<div class="message bot"><span class="ai-avatar small">✦</span><div><p>Dựa trên dữ liệu hiện có, tôi nhận thấy <b>Trống đồng Ngọc Lũ</b> đang có mức tương tác cao nhất với 1.842 lượt xem trong tháng này. Tôi có thể phân tích sâu hơn theo nhóm khách hoặc khung giờ.</p><time>Vừa xong</time></div></div>`); messages.scrollTop = messages.scrollHeight; }, 500); }
-function logout() { currentUser = null; document.getElementById('login-form').reset(); document.getElementById('login-error').textContent = ''; showAuth(); }
+function logout() {
+  currentUser = null;
+  document.getElementById('login-form').reset();
+  document.getElementById('register-form').reset();
+  document.getElementById('login-error').textContent = '';
+  document.getElementById('register-error').textContent = '';
+  switchAuthForm('login');
+  showAuth();
+}
 document.getElementById('logout-button').addEventListener('click', logout);
 document.getElementById('sidebar-logout').addEventListener('click', logout);
 bindAuth();
