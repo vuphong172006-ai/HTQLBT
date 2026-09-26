@@ -44,10 +44,30 @@ const accounts = {
   guest: { identity: 'guest@musea.vn', password: 'Guest@2026', name: 'Minh Anh', initials: 'MA', label: 'Khách tham quan' }
 };
 const guestAccountStorageKey = 'musea_guest_accounts';
+const artifactStorageKey = 'musea_artifacts';
 let customerAccounts = [];
 let currentUser = null;
 let selectedRole = 'admin';
 let pendingTicket = null;
+
+function loadStoredArtifacts() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(artifactStorageKey) || 'null');
+    return Array.isArray(saved) ? saved : db.artifacts;
+  } catch (error) {
+    return db.artifacts;
+  }
+}
+
+function saveArtifacts() {
+  try {
+    localStorage.setItem(artifactStorageKey, JSON.stringify(db.artifacts));
+  } catch (error) {
+    showToast('Không thể lưu hiện vật trên trình duyệt này.');
+  }
+}
+
+db.artifacts = loadStoredArtifacts();
 
 function getStoredGuestAccounts() {
   try {
@@ -229,10 +249,24 @@ function artifactModalHtml(artifact = null) {
 function collectionsView() { return `<section class="page-heading"><div><p class="eyebrow">Kho dữ liệu di sản</p><h1>Hiện vật &amp; bộ sưu tập</h1><p class="subtitle">Theo dõi, phân loại và bảo tồn 12.684 hiện vật của bảo tàng.</p></div><button class="primary-btn" data-action="add">＋ Thêm hiện vật</button></section><section class="toolbar"><div class="search-box">⌕<input id="artifact-search" placeholder="Tìm theo tên, mã hiện vật..." /></div><button class="filter-btn">☷ Bộ lọc <span>2</span></button><button class="select-btn">Tất cả trạng thái ⌄</button></section><div class="collection-table panel"><div class="table-head"><span>HIỆN VẬT</span><span>NIÊN ĐẠI</span><span>LOẠI HÌNH</span><span>TRẠNG THÁI</span><span>THAO TÁC</span></div><div id="artifact-rows">${artifactRows(db.artifacts)}</div></div><div id="artifact-modal-root"></div>`; }
 function artifactRows(items) { return items.map(a => `<div class="table-row"><div class="artifact-name"><span class="artifact-thumb ${a.tone}"><img src="${a.imageUrl}" alt="${a.name}" onerror="this.style.display='none'">${a.icon}</span><div><strong>${a.name}</strong><small>${a.id} · ${a.period}</small></div></div><span>${a.year}</span><span>${a.category}</span><span><b class="status ${a.status === 'Trưng bày' ? 'on' : a.status === 'Bảo quản' ? 'hold' : 'research'}">${a.status}</b></span><div class="artifact-actions">${currentUser && currentUser.role === 'admin' ? `<button class="row-action" data-action="edit-artifact" data-id="${a.id}">Sửa</button><button class="row-action danger" data-action="delete-artifact" data-id="${a.id}">Xóa</button>` : '<span>Chỉ xem</span>'}</div></div>`).join(''); }
 function artifactDescription(artifact) { const descriptions = { 'Khảo cổ': 'Hiện vật khảo cổ phản ánh kỹ thuật chế tác và đời sống của cư dân cổ trong lịch sử Việt Nam.', 'Điêu khắc': 'Tác phẩm điêu khắc mang giá trị nghệ thuật, tín ngưỡng và dấu ấn văn hóa của một thời kỳ.', 'Tư liệu': 'Tư liệu gốc được lưu giữ để nghiên cứu, giáo dục và bảo tồn ký ức lịch sử.', 'Gốm sứ': 'Hiện vật gốm sứ cho thấy kỹ thuật thủ công, thẩm mỹ và giao lưu văn hóa qua các thời kỳ.' }; return descriptions[artifact.category] || 'Hiện vật đang được lưu giữ và giới thiệu tại Bảo tàng Lịch sử Quốc gia.'; }
-function openArtifactModal(artifact = null) { const root = document.getElementById('artifact-modal-root'); if (!root) return; root.innerHTML = artifactModalHtml(artifact); }
+function openArtifactModal(artifact = null) {
+  if (!currentUser || currentUser.role !== 'admin') {
+    showToast('Chỉ quản trị viên mới có quyền quản lý hiện vật.');
+    return;
+  }
+  const root = document.getElementById('artifact-modal-root');
+  if (!root) return;
+  root.innerHTML = artifactModalHtml(artifact);
+  const backdrop = document.getElementById('artifact-modal-backdrop');
+  const form = document.getElementById('artifact-form');
+  backdrop.addEventListener('click', event => {
+    if (event.target === backdrop || event.target.closest('[data-close-artifact-modal]')) closeArtifactModal();
+  });
+  form.elements.name.focus();
+}
 function closeArtifactModal() { const root = document.getElementById('artifact-modal-root'); if (!root) return; root.innerHTML = ''; }
 function handleArtifactSubmit(event) {
-  if (event.target.id !== 'artifact-form') return;
+  if (!(event.target instanceof HTMLFormElement) || !event.target.matches('#artifact-form')) return;
   event.preventDefault();
   if (!currentUser || currentUser.role !== 'admin') {
     showToast('Chỉ quản trị viên mới có quyền quản lý hiện vật.');
@@ -257,6 +291,11 @@ function handleArtifactSubmit(event) {
     return;
   }
   const index = db.artifacts.findIndex(item => item.id === artifactId);
+  if (!form.dataset.artifactId && index >= 0) {
+    showToast('Mã hiện vật đã tồn tại. Vui lòng chọn mã khác.');
+    form.elements.id.focus();
+    return;
+  }
   if (index >= 0) {
     db.artifacts[index] = { ...db.artifacts[index], ...payload };
     showToast('Cập nhật hiện vật thành công.');
@@ -264,6 +303,7 @@ function handleArtifactSubmit(event) {
     db.artifacts.unshift(payload);
     showToast('Đã thêm hiện vật mới.');
   }
+  saveArtifacts();
   closeArtifactModal();
   render('collections');
 }
@@ -276,6 +316,7 @@ function handleArtifactDelete(artifactId) {
   if (!item) return;
   if (!window.confirm(`Bạn có chắc muốn xóa hiện vật "${item.name}"?`)) return;
   db.artifacts = db.artifacts.filter(artifact => artifact.id !== artifactId);
+  saveArtifacts();
   render('collections');
   showToast('Đã xóa hiện vật.');
 }
@@ -315,4 +356,26 @@ document.getElementById('logout-button').addEventListener('click', logout);
 document.getElementById('sidebar-logout').addEventListener('click', logout);
 bindAuth();
 bindBookingPaymentBridge();
+document.addEventListener('click', event => {
+  const button = event.target.closest('[data-action]');
+  if (!button) return;
+
+  if (button.dataset.action === 'add') {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    openArtifactModal();
+    return;
+  }
+
+  if (button.dataset.action === 'edit-artifact') {
+    const artifact = db.artifacts.find(item => item.id === button.dataset.id);
+    if (artifact) openArtifactModal(artifact);
+    return;
+  }
+
+  if (button.dataset.action === 'delete-artifact') {
+    handleArtifactDelete(button.dataset.id);
+  }
+}, true);
+document.addEventListener('submit', handleArtifactSubmit, true);
 showAuth();
