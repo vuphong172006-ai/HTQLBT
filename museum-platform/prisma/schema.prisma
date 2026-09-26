@@ -1,0 +1,119 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+  CUSTOMER
+}
+
+enum ArtifactStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ON_DISPLAY
+  CONSERVATION
+  RESEARCH
+}
+
+enum TicketStatus {
+  VALID
+  USED
+  CANCELLED
+}
+
+model User {
+  id                String            @id @default(cuid())
+  name              String
+  email             String            @unique
+  passwordHash      String
+  role              Role              @default(CUSTOMER)
+  active            Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  submittedArtifacts Artifact[]        @relation("ArtifactSubmitter")
+  approvedArtifacts  Artifact[]        @relation("ArtifactApprover")
+  conservationLogs   ConservationLog[]
+  tickets            Ticket[]          @relation("TicketOwner")
+  scannedTickets     Ticket[]          @relation("TicketScanner")
+  tours              Tour[]            @relation("TourGuide")
+}
+
+model Artifact {
+  id            String          @id @default(cuid())
+  code          String          @unique
+  name          String
+  period        String
+  year          String
+  category      String
+  description   String          @db.Text
+  imageUrl      String?
+  status        ArtifactStatus  @default(PENDING)
+  submittedById String?
+  approvedById  String?
+  submittedAt   DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  submittedBy   User?           @relation("ArtifactSubmitter", fields: [submittedById], references: [id])
+  approvedBy    User?           @relation("ArtifactApprover", fields: [approvedById], references: [id])
+  logs          ConservationLog[]
+
+  @@index([status, category])
+}
+
+model Ticket {
+  id          String       @id @default(cuid())
+  code        String       @unique
+  ownerId     String?
+  visitorName String
+  visitorEmail String
+  visitAt     DateTime
+  quantity    Int          @default(1)
+  amountVnd   Int
+  status      TicketStatus @default(VALID)
+  scannedAt   DateTime?
+  scannedById String?
+  createdAt   DateTime     @default(now())
+  owner       User?        @relation("TicketOwner", fields: [ownerId], references: [id])
+  scannedBy   User?        @relation("TicketScanner", fields: [scannedById], references: [id])
+
+  @@index([visitAt, status])
+}
+
+model Tour {
+  id           String   @id @default(cuid())
+  title        String
+  startsAt     DateTime
+  durationMins Int
+  capacity     Int
+  guideId      String?
+  route        String[]
+  guide        User?    @relation("TourGuide", fields: [guideId], references: [id])
+
+  @@unique([title, startsAt])
+}
+
+model ConservationLog {
+  id         String   @id @default(cuid())
+  artifactId String
+  staffId    String
+  condition  String
+  note       String   @db.Text
+  createdAt  DateTime @default(now())
+  artifact   Artifact @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  staff      User     @relation(fields: [staffId], references: [id])
+}
+
+model AiMessage {
+  id        String   @id @default(cuid())
+  sessionId String
+  role      String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([sessionId, createdAt])
+}

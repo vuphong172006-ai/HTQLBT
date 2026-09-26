@@ -2,6 +2,10 @@
 
 Prototype giao diện quản trị bảo tàng chạy độc lập bằng HTML, CSS và JavaScript thuần.
 
+## Bản full-stack
+
+Mã nguồn Next.js, TypeScript, Tailwind CSS và PostgreSQL/Prisma nằm trong thư mục [`museum-platform/`](museum-platform/README.md). Bản này bổ sung phân quyền ADMIN/STAFF/CUSTOMER, API, chatbot MuseAI và các giao diện vận hành; prototype HTML phía dưới được giữ nguyên.
+
 ## Chạy dự án
 
 Mở trực tiếp `index.html` trong trình duyệt. Không cần cài dependency hay backend.

@@ -342,7 +342,106 @@ function bindPaymentInteractions() { const rows = document.getElementById('payme
 function bindGuestPaymentInteractions() { const form = document.getElementById('online-payment-form'); if (!form) return; let selectedMethod = 'MoMo'; const ticketSelect = document.getElementById('payment-ticket'); const updateAmount = () => { const amount = ticketSelect.value.split('|')[2]; document.querySelector('.ticket-submit').innerHTML = `Thanh toán ${amount} <span>→</span>`; }; document.querySelectorAll('.payment-method-option').forEach(button => button.addEventListener('click', () => { selectedMethod = button.dataset.method; document.querySelectorAll('.payment-method-option').forEach(item => item.classList.toggle('active', item === button)); })); ticketSelect.addEventListener('change', updateAmount); form.addEventListener('submit', event => { event.preventDefault(); const [exhibition, code, amount] = ticketSelect.value.split('|'); db.guestPayments.unshift({ code, exhibition, date: new Date().toLocaleDateString('vi-VN'), method: selectedMethod, amount, status: 'Đã thanh toán' }); document.getElementById('guest-payment-rows').innerHTML = guestPaymentRows(); document.getElementById('paid-ticket-code').textContent = code; document.getElementById('payment-success').classList.add('show'); showToast('Thanh toán vé online thành công.'); }); updateAmount(); }
 function bindTicketInteractions() { const form = document.getElementById('ticket-form'); if (!form) return; const state = { adult: 1, child: 0 }; const updateSummary = () => { const exhibition = document.getElementById('ticket-exhibition').value; const date = document.getElementById('ticket-date').value; const slot = document.getElementById('ticket-slot').value; const totalPeople = state.adult + state.child; document.getElementById('adult-count').textContent = state.adult; document.getElementById('child-count').textContent = state.child; document.getElementById('summary-exhibition').textContent = exhibition; document.getElementById('summary-datetime').textContent = date ? `${new Date(`${date}T00:00:00`).toLocaleDateString('vi-VN')} · ${slot}` : 'Chọn ngày tham quan'; document.getElementById('summary-quantity').textContent = `${totalPeople} người (${state.adult} người lớn, ${state.child} trẻ em)`; document.getElementById('ticket-total').textContent = `${(state.adult * 80000 + state.child * 40000).toLocaleString('vi-VN')}đ`; }; document.querySelectorAll('[data-step]').forEach(button => button.addEventListener('click', () => { const type = button.dataset.step; state[type] = Math.max(type === 'adult' ? 1 : 0, Math.min(10, state[type] + Number(button.dataset.delta))); updateSummary(); })); ['ticket-exhibition', 'ticket-date', 'ticket-slot'].forEach(id => document.getElementById(id).addEventListener('change', updateSummary)); const dateInput = document.getElementById('ticket-date'); dateInput.min = new Date().toISOString().split('T')[0]; form.addEventListener('submit', event => { event.preventDefault(); const code = `MUS-${Date.now().toString().slice(-6)}`; document.getElementById('booking-code').textContent = code; document.getElementById('booking-success').classList.add('show'); document.getElementById('booking-success').scrollIntoView({ behavior: 'smooth', block: 'center' }); showToast('Đã xác nhận đặt vé online.'); }); document.getElementById('new-booking').addEventListener('click', () => { document.getElementById('booking-success').classList.remove('show'); form.reset(); state.adult = 1; state.child = 0; updateSummary(); }); updateSummary(); }
 function bindBookingPaymentBridge() { document.addEventListener('submit', event => { if (event.target.id === 'ticket-form') { if (!event.target.checkValidity()) return; event.preventDefault(); event.stopImmediatePropagation(); const code = `MUS-${Date.now().toString().slice(-6)}`; pendingTicket = { code, exhibition: document.getElementById('ticket-exhibition').value, amount: document.getElementById('ticket-total').textContent }; render('guest-payments'); const select = document.getElementById('payment-ticket'); const option = document.createElement('option'); option.value = `${pendingTicket.exhibition}|${pendingTicket.code}|${pendingTicket.amount}`; option.textContent = `${pendingTicket.code} · ${pendingTicket.exhibition} · ${pendingTicket.amount} · Chờ thanh toán`; select.prepend(option); select.value = option.value; select.dispatchEvent(new Event('change')); showToast('Đã giữ vé. Vui lòng hoàn tất thanh toán online.'); } else if (event.target.id === 'online-payment-form') { pendingTicket = null; } }, true); }
-function handleChat(e) { e.preventDefault(); const input = document.getElementById('chat-text'); const value = input.value.trim(); if (!value) return; const messages = document.getElementById('messages'); messages.insertAdjacentHTML('beforeend', `<div class="message user"><div><p>${value}</p><time>Vừa xong</time></div></div>`); input.value = ''; setTimeout(() => { messages.insertAdjacentHTML('beforeend', `<div class="message bot"><span class="ai-avatar small">✦</span><div><p>Dựa trên dữ liệu hiện có, tôi nhận thấy <b>Trống đồng Ngọc Lũ</b> đang có mức tương tác cao nhất với 1.842 lượt xem trong tháng này. Tôi có thể phân tích sâu hơn theo nhóm khách hoặc khung giờ.</p><time>Vừa xong</time></div></div>`); messages.scrollTop = messages.scrollHeight; }, 500); }
+function normalizeChatText(value) {
+  return value.toLocaleLowerCase('vi-VN').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/[^a-z0-9\s-]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function answerMuseumQuestion(question) {
+  const query = normalizeChatText(question);
+  const artifacts = db.artifacts;
+  const normalizedArtifacts = artifacts.map(item => ({ item, fields: normalizeChatText(`${item.name} ${item.id} ${item.period} ${item.category}`) }));
+  const artifactMatch = normalizedArtifacts.find(({ fields }) => fields.split(' ').some(term => term.length > 3 && query.includes(term)))?.item;
+  const asksForRanking = /nhieu nhat|quan tam|noi bat|pho bien/.test(query);
+  const asksForCount = /bao nhieu|so luong|tong so|dem/.test(query);
+  const category = artifacts.map(item => item.category).find(value => query.includes(normalizeChatText(value)));
+  const status = artifacts.map(item => item.status).find(value => query.includes(normalizeChatText(value)));
+
+  if (asksForRanking && /hien vat|bo suu tap|trung bay/.test(query)) {
+    return `Dữ liệu hiện tại chưa ghi nhận lượt xem hoặc mức độ quan tâm theo từng hiện vật, nên tôi chưa thể xếp hạng chính xác. Bộ sưu tập đang có ${artifacts.length} hồ sơ; tôi có thể tra cứu theo tên, mã, thời kỳ hoặc loại hình.`;
+  }
+
+  if (asksForCount && category) {
+    const matches = artifacts.filter(item => item.category === category);
+    return `Có ${matches.length} hiện vật thuộc loại hình ${category}: ${matches.map(item => item.name).join(', ')}.`;
+  }
+
+  if (asksForCount && status) {
+    const matches = artifacts.filter(item => item.status === status);
+    return `Có ${matches.length} hiện vật đang ở trạng thái “${status}”: ${matches.map(item => item.name).join(', ')}.`;
+  }
+
+  if (/trien lam|exhibition/.test(query)) {
+    const exhibition = db.exhibitions.find(item => query.includes(normalizeChatText(item.name)));
+    if (exhibition) return `Triển lãm “${exhibition.name}” có ${exhibition.visitors} lượt khách trong dữ liệu mẫu, tiến độ ${exhibition.progress}%, thời gian ${exhibition.date}.`;
+    return `Hiện có ${db.exhibitions.length} triển lãm trong dữ liệu: ${db.exhibitions.map(item => `${item.name} (${item.visitors} lượt khách, tiến độ ${item.progress}%)`).join('; ')}.`;
+  }
+
+  if (/luong khach|khach tham quan|du doan|gio cao diem/.test(query)) {
+    if (/cuoi tuan/.test(query)) {
+      return 'Dữ liệu mẫu chưa có lịch sử lượt khách theo từng ngày trong tuần, nên tôi chưa thể dự báo đáng tin cậy cho cuối tuần. Dashboard hiện chỉ có chỉ số minh họa: 1.248 lượt khách hôm nay và mức tăng dự kiến 28% vào khoảng 14:00.';
+    }
+    if (/thang nay|trong thang|thang/.test(query)) {
+      return 'Dashboard khách tham quan đang hiển thị 28.460 lượt trong tháng này. Đây là chỉ số mẫu của prototype, không phải dữ liệu cập nhật từ hệ thống thật.';
+    }
+    return 'Theo chỉ số mẫu trên dashboard, bảo tàng ghi nhận 1.248 lượt khách hôm nay. Gợi ý hiện tại dự báo lượng khách tăng 28% vào khoảng 14:00; đây là số liệu mô phỏng, chưa phải dự báo từ dịch vụ AI trực tuyến.';
+  }
+
+  if (artifactMatch) {
+    return `${artifactMatch.name} (${artifactMatch.id}) thuộc loại ${artifactMatch.category}, thời kỳ ${artifactMatch.period}, niên đại ${artifactMatch.year}; trạng thái hiện tại: ${artifactMatch.status}.`;
+  }
+
+  if (/hien vat|bo suu tap|collection/.test(query) && asksForCount) {
+    return `Bộ dữ liệu hiện có ${artifacts.length} hồ sơ hiện vật. ${[...new Set(artifacts.map(item => item.category))].map(value => `${value}: ${artifacts.filter(item => item.category === value).length}`).join('; ')}.`;
+  }
+
+  if (/ve|dat ve|thanh toan/.test(query)) {
+    return 'Khách tham quan có thể vào “Đặt vé online”, chọn triển lãm, ngày và số lượng vé, sau đó hoàn tất ở mục “Thanh toán & lịch sử vé”. Thanh toán hiện chỉ là mô phỏng trong trình duyệt.';
+  }
+
+  return `Tôi chưa tìm thấy câu trả lời cho câu hỏi này trong dữ liệu đang có. Tôi có thể tra cứu hiện vật theo tên hoặc mã, đếm theo loại hình/trạng thái, xem thông tin triển lãm, hoặc tóm tắt chỉ số khách tham quan. Hiện MuseAI đang dùng dữ liệu mẫu cục bộ, chưa kết nối mô hình AI trực tuyến.`;
+}
+
+function appendChatMessage(role, text) {
+  const message = document.createElement('div');
+  message.className = `message ${role}`;
+  if (role === 'bot') {
+    const avatar = document.createElement('span');
+    avatar.className = 'ai-avatar small';
+    avatar.textContent = '✦';
+    message.append(avatar);
+  }
+  const body = document.createElement('div');
+  const paragraph = document.createElement('p');
+  const time = document.createElement('time');
+  paragraph.textContent = text;
+  time.textContent = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  body.append(paragraph, time);
+  message.append(body);
+  document.getElementById('messages').append(message);
+  return message;
+}
+
+function handleChat(event) {
+  event.preventDefault();
+  const input = document.getElementById('chat-text');
+  const question = input.value.trim();
+  if (!question) return;
+
+  appendChatMessage('user', question);
+  input.value = '';
+  const sendButton = event.currentTarget.querySelector('button');
+  sendButton.disabled = true;
+  const loading = appendChatMessage('bot', 'MuseAI đang tra cứu dữ liệu bảo tàng…');
+  const messages = document.getElementById('messages');
+  messages.scrollTop = messages.scrollHeight;
+
+  window.setTimeout(() => {
+    loading.querySelector('p').textContent = answerMuseumQuestion(question);
+    sendButton.disabled = false;
+    input.focus();
+    messages.scrollTop = messages.scrollHeight;
+  }, 350);
+}
 function logout() {
   currentUser = null;
   document.getElementById('login-form').reset();
