@@ -3,10 +3,11 @@
 import {
   Activity, ArrowDownRight, ArrowLeft, ArrowRight, BadgeCheck, Bell, BookOpen,
   Camera, Check, ChevronDown, Clock3, Compass, CreditCard, ImagePlus, Landmark,
-  LayoutDashboard, LogOut, Map, Menu, MessageCircle, QrCode, Search, Send,
-  Settings2, ShieldCheck, Sparkles, Ticket, Users, X,
+  LayoutDashboard, LogOut, Map, Menu, QrCode, Search,
+  Settings2, ShieldCheck, Sparkles, Ticket, Users,
 } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
+import CustomerChatBubble from "@/components/customer-chat-bubble";
 
 type Role = "ADMIN" | "STAFF" | "CUSTOMER";
 type User = { id: string; name: string; email: string; role: Role };
@@ -14,7 +15,6 @@ type Artifact = { id: string; code: string; name: string; period: string; year: 
 type TicketRecord = { id: string; code: string; visitorName: string; visitorEmail: string; visitAt: string; quantity: number; amountVnd: number; status: string };
 type Employee = { id: string; name: string; email: string; role: Role; active: boolean };
 type Tour = { id: string; title: string; startsAt: string; durationMins: number; capacity: number; guide?: { name: string } | null; route: string[] };
-type ChatLine = { role: "user" | "assistant"; content: string };
 
 const demoAccounts = [
   { role: "ADMIN" as Role, email: "admin@musea.vn", label: "Quản trị" },
@@ -46,11 +46,6 @@ export default function MuseumApp() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [tours, setTours] = useState<Tour[]>([]);
   const [query, setQuery] = useState("");
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatInput, setChatInput] = useState("");
-  const [chatBusy, setChatBusy] = useState(false);
-  const [chatSession, setChatSession] = useState("");
-  const [chat, setChat] = useState<ChatLine[]>([{ role: "assistant", content: "Xin chào, tôi là MuseAI. Tôi có thể giúp bạn tìm hiện vật, triển lãm và thông tin tham quan." }]);
   const [route, setRoute] = useState<{ name: string; duration: number }[]>([]);
   const [routeMinutes, setRouteMinutes] = useState(120);
   const [interests, setInterests] = useState<string[]>(["Lịch sử", "Khảo cổ"]);
@@ -119,21 +114,6 @@ export default function MuseumApp() {
   const logout = async () => {
     await api("/api/auth/logout", { method: "POST" }).catch(() => undefined);
     setUser(null); setArtifacts([]); setTickets([]); setEmployees([]); setTours([]); setPage("overview");
-  };
-
-  const submitChat = async (event: FormEvent) => {
-    event.preventDefault();
-    const message = chatInput.trim();
-    if (!message || chatBusy) return;
-    setChat((current) => [...current, { role: "user", content: message }]);
-    setChatInput(""); setChatBusy(true);
-    try {
-      const result = await api<{ answer: string; sessionId: string }>("/api/ai/chat", { method: "POST", body: JSON.stringify({ message, sessionId: chatSession || undefined }) });
-      setChatSession(result.sessionId);
-      setChat((current) => [...current, { role: "assistant", content: result.answer }]);
-    } catch (reason) {
-      setChat((current) => [...current, { role: "assistant", content: reason instanceof Error ? reason.message : "MuseAI tạm thời chưa phản hồi." }]);
-    } finally { setChatBusy(false); }
   };
 
   const validateTicket = async (event: FormEvent) => {
@@ -254,7 +234,7 @@ export default function MuseumApp() {
           </div>
         </section>
       </div>
-      {user.role === "CUSTOMER" && <ChatBubble open={chatOpen} setOpen={setChatOpen} lines={chat} input={chatInput} setInput={setChatInput} busy={chatBusy} onSubmit={submitChat} />}
+      {user.role === "CUSTOMER" && <CustomerChatBubble />}
       {notice && <div className="toast-message"><Check size={16} />{notice}</div>}
     </main>
   );
@@ -328,6 +308,3 @@ function SettingsWorkspace() {
   return <><PageHeading eyebrow="THIẾT LẬP NỀN TẢNG" title="Cấu hình hệ thống" subtitle="Các mục vận hành và tích hợp cho môi trường triển khai." /><div className="settings-grid">{[{ icon: <ShieldCheck />, title: "Chính sách truy cập", text: "Role kiểm tra phía API · session cookie HTTP-only", value: "ĐANG BẬT" }, { icon: <CreditCard />, title: "Thanh toán vé", text: "Cấu hình cổng thanh toán được cấp phép", value: "CHƯA KẾT NỐI" }, { icon: <Sparkles />, title: "Nhà cung cấp AI", text: "OpenAI-compatible provider qua API server", value: process.env.NEXT_PUBLIC_AI_READY === "true" ? "ĐÃ CẤU HÌNH" : "DÙNG DỮ LIỆU MẪU" }, { icon: <Activity />, title: "Cơ sở dữ liệu", text: "PostgreSQL qua Prisma ORM", value: "POSTGRESQL" }].map((item) => <article className="settings-item" key={item.title}><span className="settings-icon">{item.icon}</span><div><strong>{item.title}</strong><p>{item.text}</p><small>{item.value}</small></div><ChevronDown size={16} /></article>)}</div><div className="security-banner"><ShieldCheck size={20} /><div><strong>Bảo vệ API ở server</strong><p>Giao diện không phải ranh giới bảo mật. Mọi thao tác quản trị được xác thực lại ở route handler.</p></div></div></>;
 }
 
-function ChatBubble({ open, setOpen, lines, input, setInput, busy, onSubmit }: { open: boolean; setOpen: (open: boolean) => void; lines: ChatLine[]; input: string; setInput: (value: string) => void; busy: boolean; onSubmit: (event: FormEvent) => void }) {
-  return <><button className="chat-fab" aria-label={open ? "Đóng MuseAI" : "Mở MuseAI"} onClick={() => setOpen(!open)}>{open ? <X size={22} /> : <MessageCircle size={23} />}<span className="chat-online" /></button>{open && <section className="chat-window" aria-label="Trò chuyện với MuseAI"><header className="chat-titlebar"><span className="chat-ai-mark"><Sparkles size={17} /></span><div><strong>MuseAI</strong><small><i /> Trợ lý bảo tàng trực tuyến</small></div><button className="icon-quiet" onClick={() => setOpen(false)} aria-label="Đóng chat"><X size={17} /></button></header><div className="chat-messages">{lines.map((line, index) => <div key={`${index}-${line.role}`} className={`chat-line ${line.role}`}><p>{line.content}</p></div>)}{busy && <div className="chat-line assistant"><p className="typing-dots"><i /><i /><i /></p></div>}</div><div className="chat-prompts"><button onClick={() => setInput("Trống đồng Ngọc Lũ có gì đặc biệt?")}>Hiện vật nổi bật</button><button onClick={() => setInput("Hôm nay có triển lãm nào? ")}>Triển lãm</button></div><form className="chat-composer" onSubmit={onSubmit}><input value={input} onChange={(event) => setInput(event.target.value)} placeholder="Hỏi về bảo tàng…" maxLength={1200} /><button disabled={busy || !input.trim()} aria-label="Gửi câu hỏi"><Send size={16} /></button></form><p className="chat-disclaimer">Câu trả lời AI có thể cần được nhân viên xác minh.</p></section>}</>;
-}
