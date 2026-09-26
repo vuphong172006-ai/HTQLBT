@@ -200,9 +200,85 @@ function overviewView() {
   <section class="lower-grid"><article class="panel"><div class="panel-head"><div><h2>Hoạt động gần đây</h2><p>Cập nhật theo thời gian thực</p></div><button class="text-btn">Xem tất cả →</button></div><div class="activity-list"><div class="activity"><span class="activity-icon blue-bg">◈</span><div><strong>Đã thêm hiện vật mới</strong><p>Ấm tử sa Chu Nê · Bộ sưu tập Gốm sứ</p></div><time>10 phút trước</time></div><div class="activity"><span class="activity-icon orange-bg">♧</span><div><strong>Triển lãm được cập nhật</strong><p>Dòng chảy Văn Lang · Thay đổi nội dung khu B</p></div><time>1 giờ trước</time></div><div class="activity"><span class="activity-icon green-bg">♙</span><div><strong>Đạt mốc khách tham quan</strong><p>10.000 lượt · Triển lãm Nghệ thuật Champa</p></div><time>3 giờ trước</time></div></div></article><article class="panel quick-panel"><div class="panel-head"><div><h2>Truy cập nhanh</h2><p>Các tác vụ thường dùng</p></div></div><div class="quick-actions"><button data-view="collections"><span>＋</span><b>Thêm hiện vật</b><small>Tạo hồ sơ hiện vật mới</small></button><button data-view="visitors"><span>♙</span><b>Xuất báo cáo khách</b><small>Phân tích lượt tham quan</small></button><button data-view="ai"><span class="sparkle">✦</span><b>Hỏi MuseAI</b><small>Nhận câu trả lời tức thì</small></button></div></article></section>`;
 }
 
-function collectionsView() { return `<section class="page-heading"><div><p class="eyebrow">Kho dữ liệu di sản</p><h1>Hiện vật &amp; bộ sưu tập</h1><p class="subtitle">Theo dõi, phân loại và bảo tồn 12.684 hiện vật của bảo tàng.</p></div><button class="primary-btn" data-action="add">＋ Thêm hiện vật</button></section><section class="toolbar"><div class="search-box">⌕<input id="artifact-search" placeholder="Tìm theo tên, mã hiện vật..." /></div><button class="filter-btn">☷ Bộ lọc <span>2</span></button><button class="select-btn">Tất cả trạng thái ⌄</button></section><div class="collection-table panel"><div class="table-head"><span>HIỆN VẬT</span><span>NIÊN ĐẠI</span><span>LOẠI HÌNH</span><span>TRẠNG THÁI</span><span></span></div><div id="artifact-rows">${artifactRows(db.artifacts)}</div></div>`; }
-function artifactRows(items) { return items.map(a => `<div class="table-row"><div class="artifact-name"><span class="artifact-thumb ${a.tone}"><img src="${a.imageUrl}" alt="${a.name}" onerror="this.style.display='none'">${a.icon}</span><div><strong>${a.name}</strong><small>${a.id} · ${a.period}</small></div></div><span>${a.year}</span><span>${a.category}</span><span><b class="status ${a.status === 'Trưng bày' ? 'on' : a.status === 'Bảo quản' ? 'hold' : 'research'}">${a.status}</b></span><button class="row-more">•••</button></div>`).join(''); }
+function artifactModalHtml(artifact = null) {
+  const mode = artifact ? 'edit' : 'add';
+  const item = artifact || { id: '', name: '', period: '', year: '', category: 'Khảo cổ', status: 'Trưng bày', icon: '◈', tone: 'blue', imageUrl: '' };
+  return `<div class="artifact-modal-backdrop" id="artifact-modal-backdrop">
+    <div class="artifact-modal panel">
+      <div class="modal-head"><h2>${mode === 'edit' ? 'Sửa hiện vật' : 'Thêm hiện vật mới'}</h2><button type="button" class="close-modal" data-close-artifact-modal aria-label="Đóng">×</button></div>
+      <form id="artifact-form" data-artifact-id="${item.id}">
+        <div class="artifact-form-grid">
+          <label>Tên hiện vật<input name="name" type="text" value="${item.name}" required></label>
+          <label>Mã hiện vật<input name="id" type="text" value="${item.id}" ${mode === 'edit' ? 'readonly' : 'required'}></label>
+          <label>Thời kỳ<input name="period" type="text" value="${item.period}" required></label>
+          <label>Niên đại<input name="year" type="text" value="${item.year}" required></label>
+          <label>Loại hình<select name="category"><option ${item.category === 'Khảo cổ' ? 'selected' : ''}>Khảo cổ</option><option ${item.category === 'Điêu khắc' ? 'selected' : ''}>Điêu khắc</option><option ${item.category === 'Tư liệu' ? 'selected' : ''}>Tư liệu</option><option ${item.category === 'Gốm sứ' ? 'selected' : ''}>Gốm sứ</option></select></label>
+          <label>Trạng thái<select name="status"><option ${item.status === 'Trưng bày' ? 'selected' : ''}>Trưng bày</option><option ${item.status === 'Bảo quản' ? 'selected' : ''}>Bảo quản</option><option ${item.status === 'Đang nghiên cứu' ? 'selected' : ''}>Đang nghiên cứu</option></select></label>
+          <label>Biểu tượng<input name="icon" type="text" value="${item.icon}" maxlength="2"></label>
+          <label>URL hình ảnh<input name="imageUrl" type="url" value="${item.imageUrl}" placeholder="https://..."></label>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="secondary-btn" data-close-artifact-modal>Hủy</button>
+          <button type="submit" class="primary-btn">${mode === 'edit' ? 'Lưu thay đổi' : 'Thêm hiện vật'}</button>
+        </div>
+      </form>
+    </div>
+  </div>`;
+}
+
+function collectionsView() { return `<section class="page-heading"><div><p class="eyebrow">Kho dữ liệu di sản</p><h1>Hiện vật &amp; bộ sưu tập</h1><p class="subtitle">Theo dõi, phân loại và bảo tồn 12.684 hiện vật của bảo tàng.</p></div><button class="primary-btn" data-action="add">＋ Thêm hiện vật</button></section><section class="toolbar"><div class="search-box">⌕<input id="artifact-search" placeholder="Tìm theo tên, mã hiện vật..." /></div><button class="filter-btn">☷ Bộ lọc <span>2</span></button><button class="select-btn">Tất cả trạng thái ⌄</button></section><div class="collection-table panel"><div class="table-head"><span>HIỆN VẬT</span><span>NIÊN ĐẠI</span><span>LOẠI HÌNH</span><span>TRẠNG THÁI</span><span>THAO TÁC</span></div><div id="artifact-rows">${artifactRows(db.artifacts)}</div></div><div id="artifact-modal-root"></div>`; }
+function artifactRows(items) { return items.map(a => `<div class="table-row"><div class="artifact-name"><span class="artifact-thumb ${a.tone}"><img src="${a.imageUrl}" alt="${a.name}" onerror="this.style.display='none'">${a.icon}</span><div><strong>${a.name}</strong><small>${a.id} · ${a.period}</small></div></div><span>${a.year}</span><span>${a.category}</span><span><b class="status ${a.status === 'Trưng bày' ? 'on' : a.status === 'Bảo quản' ? 'hold' : 'research'}">${a.status}</b></span><div class="artifact-actions">${currentUser && currentUser.role === 'admin' ? `<button class="row-action" data-action="edit-artifact" data-id="${a.id}">Sửa</button><button class="row-action danger" data-action="delete-artifact" data-id="${a.id}">Xóa</button>` : '<span>Chỉ xem</span>'}</div></div>`).join(''); }
 function artifactDescription(artifact) { const descriptions = { 'Khảo cổ': 'Hiện vật khảo cổ phản ánh kỹ thuật chế tác và đời sống của cư dân cổ trong lịch sử Việt Nam.', 'Điêu khắc': 'Tác phẩm điêu khắc mang giá trị nghệ thuật, tín ngưỡng và dấu ấn văn hóa của một thời kỳ.', 'Tư liệu': 'Tư liệu gốc được lưu giữ để nghiên cứu, giáo dục và bảo tồn ký ức lịch sử.', 'Gốm sứ': 'Hiện vật gốm sứ cho thấy kỹ thuật thủ công, thẩm mỹ và giao lưu văn hóa qua các thời kỳ.' }; return descriptions[artifact.category] || 'Hiện vật đang được lưu giữ và giới thiệu tại Bảo tàng Lịch sử Quốc gia.'; }
+function openArtifactModal(artifact = null) { const root = document.getElementById('artifact-modal-root'); if (!root) return; root.innerHTML = artifactModalHtml(artifact); }
+function closeArtifactModal() { const root = document.getElementById('artifact-modal-root'); if (!root) return; root.innerHTML = ''; }
+function handleArtifactSubmit(event) {
+  if (event.target.id !== 'artifact-form') return;
+  event.preventDefault();
+  if (!currentUser || currentUser.role !== 'admin') {
+    showToast('Chỉ quản trị viên mới có quyền quản lý hiện vật.');
+    return;
+  }
+  const form = event.target;
+  const rawId = form.dataset.artifactId || form.elements.id.value.trim();
+  const artifactId = rawId || `ART-${Date.now().toString().slice(-4)}`;
+  const payload = {
+    id: artifactId,
+    name: form.elements.name.value.trim(),
+    period: form.elements.period.value.trim(),
+    year: form.elements.year.value.trim(),
+    category: form.elements.category.value,
+    status: form.elements.status.value,
+    icon: form.elements.icon.value.trim() || '◈',
+    tone: form.elements.category.value === 'Khảo cổ' ? 'blue' : form.elements.category.value === 'Điêu khắc' ? 'peach' : form.elements.category.value === 'Tư liệu' ? 'yellow' : 'green',
+    imageUrl: form.elements.imageUrl.value.trim() || 'https://images.unsplash.com/photo-1518998053901-5348d3961a04?auto=format&fit=crop&w=800&q=80'
+  };
+  if (!payload.name || !payload.period || !payload.year) {
+    showToast('Vui lòng điền đầy đủ thông tin hiện vật.');
+    return;
+  }
+  const index = db.artifacts.findIndex(item => item.id === artifactId);
+  if (index >= 0) {
+    db.artifacts[index] = { ...db.artifacts[index], ...payload };
+    showToast('Cập nhật hiện vật thành công.');
+  } else {
+    db.artifacts.unshift(payload);
+    showToast('Đã thêm hiện vật mới.');
+  }
+  closeArtifactModal();
+  render('collections');
+}
+function handleArtifactDelete(artifactId) {
+  if (!currentUser || currentUser.role !== 'admin') {
+    showToast('Chỉ quản trị viên mới có quyền xóa hiện vật.');
+    return;
+  }
+  const item = db.artifacts.find(artifact => artifact.id === artifactId);
+  if (!item) return;
+  if (!window.confirm(`Bạn có chắc muốn xóa hiện vật "${item.name}"?`)) return;
+  db.artifacts = db.artifacts.filter(artifact => artifact.id !== artifactId);
+  render('collections');
+  showToast('Đã xóa hiện vật.');
+}
 function publicArtifactCards(items) { return items.map(a => `<article class="public-artifact-card"><div class="public-artifact-image ${a.tone}"><img src="${a.imageUrl}" alt="${a.name}" onerror="this.style.display='none'"><span>${a.icon}</span><b>${a.status}</b></div><div class="public-artifact-body"><div class="public-artifact-meta"><span>${a.category}</span><small>${a.id}</small></div><h2>${a.name}</h2><p>${artifactDescription(a)}</p><dl><div><dt>Niên đại</dt><dd>${a.year}</dd></div><div><dt>Thời kỳ</dt><dd>${a.period}</dd></div></dl></div></article>`).join(''); }
 function artifactInfoView() { return `<section class="page-heading"><div><p class="eyebrow">DÀNH CHO KHÁCH THAM QUAN</p><h1>Thông tin hiện vật</h1><p class="subtitle">Khám phá những câu chuyện, chất liệu và niên đại phía sau các hiện vật tiêu biểu.</p></div><span class="visitor-badge">◉ Chế độ tham quan</span></section><section class="toolbar"><div class="search-box">⌕<input id="public-artifact-search" placeholder="Tìm tên hiện vật, thời kỳ..." /></div><span class="collection-count">${db.artifacts.length} hiện vật tiêu biểu</span></section><section class="public-artifact-grid" id="public-artifact-grid">${publicArtifactCards(db.artifacts)}</section>`; }
 function ticketsView() { return `<section class="page-heading"><div><p class="eyebrow">DÀNH CHO KHÁCH THAM QUAN</p><h1>Đặt vé online</h1><p class="subtitle">Chọn lịch tham quan và nhận vé điện tử ngay sau khi hoàn tất đăng ký.</p></div><span class="visitor-badge">✦ Vé điện tử</span></section><section class="ticket-layout"><form class="ticket-form panel" id="ticket-form"><div class="form-section-title"><span>01</span><div><h2>Thông tin chuyến tham quan</h2><p>Vé có hiệu lực trong ngày đã chọn.</p></div></div><label>Triển lãm muốn tham quan<select id="ticket-exhibition"><option>Dòng chảy Văn Lang</option><option>Nghệ thuật Champa</option><option>Di sản Ký ức</option><option>Tham quan toàn bộ bảo tàng</option></select></label><div class="ticket-fields"><label>Ngày tham quan<input id="ticket-date" type="date" required></label><label>Khung giờ<select id="ticket-slot"><option>08:00 — 10:00</option><option>10:00 — 12:00</option><option>14:00 — 16:00</option><option>16:00 — 18:00</option></select></label></div><div class="form-section-title second"><span>02</span><div><h2>Thông tin liên hệ</h2><p>Vé sẽ được gửi tới email của bạn.</p></div></div><label>Họ và tên<input id="ticket-name" type="text" placeholder="Nguyễn Văn A" required></label><label>Email nhận vé<input id="ticket-email" type="email" placeholder="email@example.com" required></label><div class="ticket-fields"><label>Số vé người lớn<div class="number-stepper"><button type="button" data-step="adult" data-delta="-1">−</button><strong id="adult-count">1</strong><button type="button" data-step="adult" data-delta="1">＋</button></div></label><label>Số vé trẻ em<div class="number-stepper"><button type="button" data-step="child" data-delta="-1">−</button><strong id="child-count">0</strong><button type="button" data-step="child" data-delta="1">＋</button></div></label></div><button class="primary-btn ticket-submit" type="submit">Xác nhận đặt vé <span>→</span></button></form><aside class="ticket-summary panel"><div class="summary-top"><span class="ticket-icon">▣</span><div><strong>Vé tham quan bảo tàng</strong><small>Vé điện tử · Không cần in</small></div></div><div class="summary-details"><div><span>Triển lãm</span><b id="summary-exhibition">Dòng chảy Văn Lang</b></div><div><span>Ngày &amp; giờ</span><b id="summary-datetime">Chọn ngày tham quan</b></div><div><span>Số lượng</span><b id="summary-quantity">1 người lớn</b></div></div><div class="summary-price"><span>Tổng thanh toán</span><strong id="ticket-total">80.000đ</strong></div><p class="ticket-note">Hủy vé miễn phí trước 24 giờ. Mỗi vé bao gồm quyền tham quan các khu trưng bày cố định.</p></aside></section><div class="booking-success" id="booking-success"><span>✓</span><div><strong>Đặt vé thành công!</strong><p>Mã vé của bạn là <b id="booking-code"></b>. Vé điện tử đã được ghi nhận.</p></div><button class="text-btn" id="new-booking">Đặt vé khác →</button></div>`; }
