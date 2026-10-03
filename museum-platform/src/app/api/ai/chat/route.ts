@@ -8,6 +8,11 @@ const questionSchema = z.object({ message: z.string().trim().min(1).max(1200), s
 
 function localAnswer(question: string, context: string) {
   const normalized = question.toLocaleLowerCase("vi-VN");
+  if (/giờ mở cửa|mấy giờ|mở cửa|đóng cửa|thời gian hoạt động/.test(normalized)) return "Theo thông tin tham khảo của bản demo, bảo tàng mở cửa từ 08:00 đến 17:00. Lịch ngày lễ có thể thay đổi; vui lòng kiểm tra thông báo chính thức trước chuyến đi.";
+  if (/địa chỉ|ở đâu|đường nào|vị trí/.test(normalized)) return "Bản demo chưa cấu hình địa chỉ và bản đồ chỉ đường chính thức. Bạn có thể xem sơ đồ các khu trưng bày trong mục “Bản đồ”; hãy xác nhận địa chỉ trên kênh chính thức của bảo tàng trước khi khởi hành.";
+  if (/giá vé|bao nhiêu tiền|phí vào cửa|vé bao nhiêu/.test(normalized)) return "Giá vé tham khảo trong bản demo là 80.000₫/người. Mức giá này chỉ dùng để minh họa luồng đặt vé, vui lòng xác nhận giá hiện hành với bảo tàng.";
+  if (/đặt vé|mua vé|vé online|vé trực tuyến/.test(normalized)) return "Bạn có thể mở mục “Vé tham quan”, chọn ngày, khung giờ và số lượng khách rồi tạo vé. Luồng thanh toán trực tuyến chưa được kết nối cổng thanh toán thật; mã vé demo không thay thế vé đã thanh toán.";
+  if (/trẻ em|trẻ nhỏ|em bé|miễn phí/.test(normalized)) return "Chính sách giá vé trẻ em và miễn phí chưa được cấu hình trong bản demo. Hãy hỏi quầy vé để xác nhận độ tuổi áp dụng và giấy tờ cần mang theo.";
   if (/hiện vật|hiện vật nào|bộ sưu tập|mã hiện vật/.test(normalized)) return `Thông tin bộ sưu tập hiện có:\n${context || "Chưa có hồ sơ hiện vật trong cơ sở dữ liệu."}`;
   if (/triển lãm/.test(normalized)) return `Bảo tàng có ${museumFacts.exhibitions.length} triển lãm trong bộ dữ liệu mẫu: ${museumFacts.exhibitions.map((item) => `${item.name} (${item.visitors.toLocaleString("vi-VN")} lượt khách, tiến độ ${item.progress}%)`).join("; ")}.`;
   if (/khách|lượt|tham quan|đông/.test(normalized)) return `Dashboard mẫu ghi nhận ${museumFacts.visitorToday.toLocaleString("vi-VN")} lượt khách hôm nay và ${museumFacts.monthlyVisitors.toLocaleString("vi-VN")} lượt trong tháng. Đây là dữ liệu minh họa; cần nguồn analytics thực tế để có số liệu vận hành.`;

@@ -6,6 +6,14 @@ import { MessageCircle, Send, Sparkles, X } from "lucide-react";
 type ChatLine = { role: "user" | "assistant"; content: string };
 
 type ChatResponse = { answer?: string; sessionId?: string; error?: string };
+const suggestedQuestions = [
+  { label: "Giờ mở cửa", question: "Bảo tàng mở cửa mấy giờ?" },
+  { label: "Giá vé", question: "Giá vé tham quan là bao nhiêu?" },
+  { label: "Cách đặt vé", question: "Tôi đặt vé online như thế nào?" },
+  { label: "Triển lãm", question: "Hiện có những triển lãm nào?" },
+  { label: "Hiện vật", question: "Cho tôi xem thông tin Trống đồng Ngọc Lũ." },
+  { label: "Trẻ em", question: "Trẻ em có được miễn phí vé không?" },
+];
 
 export default function CustomerChatBubble() {
   const [open, setOpen] = useState(false);
@@ -90,8 +98,7 @@ export default function CustomerChatBubble() {
       </div>
 
       <div className="chat-prompts" aria-label="Câu hỏi gợi ý">
-        <button type="button" onClick={() => setInput("Trống đồng Ngọc Lũ có gì đặc biệt?")}>Hiện vật nổi bật</button>
-        <button type="button" onClick={() => setInput("Hôm nay có triển lãm nào?")}>Triển lãm</button>
+        {suggestedQuestions.map((item) => <button key={item.label} type="button" disabled={busy} onClick={() => { setInput(item.question); inputRef.current?.focus(); }}>{item.label}</button>)}
       </div>
 
       <form className="chat-composer" onSubmit={sendMessage}>

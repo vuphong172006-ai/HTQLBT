@@ -9,7 +9,10 @@ const db = {
     { id: 'ART-0741', name: 'Tượng Phật đồng cổ', period: 'Phù Nam', year: 'TK VIII - IX', category: 'Điêu khắc', status: 'Trưng bày', icon: '🗿', tone: 'yellow', imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Bronze%20Buddha%20%288%E2%80%939th%20century%29%2C%20Museum%20of%20Vietnamese%20History%2C%20Ho%20Chi%20Minh%20City%20-%2020121014.JPG' },
     { id: 'ART-0815', name: 'Mộc bản Ngự chế', period: 'Nguyễn', year: 'TK XIX', category: 'Tư liệu', status: 'Đang nghiên cứu', icon: '📜', tone: 'green', imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Woodblocks%20of%20the%20Nguy%E1%BB%85n%20Dynasty%2001.jpg' },
     { id: 'ART-0933', name: 'Ấm đất Nghi Hưng cổ', period: 'Thanh', year: 'TK XVIII', category: 'Gốm sứ', status: 'Trưng bày', icon: '🫖', tone: 'peach', imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/YixingClayTeapotByChenMingyuanOfQingDynasty-TianqingClay.jpg' },
-    { id: 'ART-1042', name: 'Phù điêu vũ nữ Apsara', period: 'Champa', year: 'TK X', category: 'Điêu khắc', status: 'Bảo quản', icon: '🧱', tone: 'yellow', imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Champa%20Bronze%20%289980585726%29.jpg' }
+    { id: 'ART-1042', name: 'Phù điêu vũ nữ Apsara', period: 'Champa', year: 'TK X', category: 'Điêu khắc', status: 'Bảo quản', icon: '🧱', tone: 'yellow', imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Champa%20Bronze%20%289980585726%29.jpg' },
+    { id: 'ART-1124', name: 'Bát sứ men rạn Bát Tràng', period: 'Nguyễn', year: 'TK XIX', category: 'Gốm sứ', status: 'Trưng bày', icon: '🍶', tone: 'green', imageUrl: 'https://images.unsplash.com/photo-1610701596061-2ecf227e85b2?auto=format&fit=crop&w=900&q=80' },
+    { id: 'ART-1184', name: 'Cồng chiêng đồng Bàu Trắng', period: 'Đông Sơn', year: 'TK I TCN', category: 'Khảo cổ', status: 'Bảo quản', icon: '🔔', tone: 'blue', imageUrl: 'https://images.unsplash.com/photo-1533090161767-e6ffed986c88?auto=format&fit=crop&w=900&q=80' },
+    { id: 'ART-1217', name: 'Tượng Quan Âm đá cẩm thạch', period: 'Lý', year: 'TK XI', category: 'Điêu khắc', status: 'Trưng bày', icon: '🕊️', tone: 'peach', imageUrl: 'https://images.unsplash.com/photo-1518998053901-5348d3961a04?auto=format&fit=crop&w=900&q=80' }
   ],
   exhibitions: [
     { name: 'Dòng chảy Văn Lang', visitors: '8.420', progress: 78, color: 'terracotta', date: '12.06 — 30.12.2026' },
@@ -346,62 +349,126 @@ function normalizeChatText(value) {
   return value.toLocaleLowerCase('vi-VN').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/[^a-z0-9\s-]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-function answerMuseumQuestion(question) {
+function resolveMuseumAnswer(question) {
   const query = normalizeChatText(question);
   const artifacts = db.artifacts;
   const normalizedArtifacts = artifacts.map(item => ({ item, fields: normalizeChatText(`${item.name} ${item.id} ${item.period} ${item.category}`) }));
   const artifactMatch = normalizedArtifacts.find(({ fields }) => fields.split(' ').some(term => term.length > 3 && query.includes(term)))?.item;
   const asksForRanking = /nhieu nhat|quan tam|noi bat|pho bien/.test(query);
   const asksForCount = /bao nhieu|so luong|tong so|dem/.test(query);
+  const asksForArtifactIntro = /gioi thieu|goi y|de xuat|mot hien vat|hien vat bat ky|hien vat ngau nhien|moi mot hien vat/.test(query);
   const category = artifacts.map(item => item.category).find(value => query.includes(normalizeChatText(value)));
   const status = artifacts.map(item => item.status).find(value => query.includes(normalizeChatText(value)));
 
+  if (asksForArtifactIntro) {
+    const suggested = artifacts[Math.floor(Math.random() * artifacts.length)];
+    return {
+      text: `Một hiện vật đáng chú ý là “${suggested.name}” (${suggested.id}). Đây là ${suggested.category.toLowerCase()} thuộc thời kỳ ${suggested.period}, niên đại ${suggested.year}. Hiện vật đang ở trạng thái “${suggested.status}” và mang giá trị văn hóa đặc biệt trong bộ sưu tập của bảo tàng.`,
+      imageUrl: suggested.imageUrl || '',
+      artifactName: suggested.name
+    };
+  }
+
   if (asksForRanking && /hien vat|bo suu tap|trung bay/.test(query)) {
-    return `Dữ liệu hiện tại chưa ghi nhận lượt xem hoặc mức độ quan tâm theo từng hiện vật, nên tôi chưa thể xếp hạng chính xác. Bộ sưu tập đang có ${artifacts.length} hồ sơ; tôi có thể tra cứu theo tên, mã, thời kỳ hoặc loại hình.`;
+    return {
+      text: `Dữ liệu hiện tại chưa ghi nhận lượt xem hoặc mức độ quan tâm theo từng hiện vật, nên tôi chưa thể xếp hạng chính xác. Bộ sưu tập đang có ${artifacts.length} hồ sơ; tôi có thể tra cứu theo tên, mã, thời kỳ hoặc loại hình.`,
+      imageUrl: '',
+      artifactName: ''
+    };
   }
 
   if (asksForCount && category) {
     const matches = artifacts.filter(item => item.category === category);
-    return `Có ${matches.length} hiện vật thuộc loại hình ${category}: ${matches.map(item => item.name).join(', ')}.`;
+    return {
+      text: `Có ${matches.length} hiện vật thuộc loại hình ${category}: ${matches.map(item => item.name).join(', ')}.`,
+      imageUrl: '',
+      artifactName: ''
+    };
   }
 
   if (asksForCount && status) {
     const matches = artifacts.filter(item => item.status === status);
-    return `Có ${matches.length} hiện vật đang ở trạng thái “${status}”: ${matches.map(item => item.name).join(', ')}.`;
+    return {
+      text: `Có ${matches.length} hiện vật đang ở trạng thái “${status}”: ${matches.map(item => item.name).join(', ')}.`,
+      imageUrl: '',
+      artifactName: ''
+    };
   }
 
   if (/trien lam|exhibition/.test(query)) {
     const exhibition = db.exhibitions.find(item => query.includes(normalizeChatText(item.name)));
-    if (exhibition) return `Triển lãm “${exhibition.name}” có ${exhibition.visitors} lượt khách trong dữ liệu mẫu, tiến độ ${exhibition.progress}%, thời gian ${exhibition.date}.`;
-    return `Hiện có ${db.exhibitions.length} triển lãm trong dữ liệu: ${db.exhibitions.map(item => `${item.name} (${item.visitors} lượt khách, tiến độ ${item.progress}%)`).join('; ')}.`;
+    if (exhibition) {
+      return {
+        text: `Triển lãm “${exhibition.name}” có ${exhibition.visitors} lượt khách trong dữ liệu mẫu, tiến độ ${exhibition.progress}%, thời gian ${exhibition.date}.`,
+        imageUrl: '',
+        artifactName: ''
+      };
+    }
+    return {
+      text: `Hiện có ${db.exhibitions.length} triển lãm trong dữ liệu: ${db.exhibitions.map(item => `${item.name} (${item.visitors} lượt khách, tiến độ ${item.progress}%)`).join('; ')}.`,
+      imageUrl: '',
+      artifactName: ''
+    };
   }
 
   if (/luong khach|khach tham quan|du doan|gio cao diem/.test(query)) {
     if (/cuoi tuan/.test(query)) {
-      return 'Dữ liệu mẫu chưa có lịch sử lượt khách theo từng ngày trong tuần, nên tôi chưa thể dự báo đáng tin cậy cho cuối tuần. Dashboard hiện chỉ có chỉ số minh họa: 1.248 lượt khách hôm nay và mức tăng dự kiến 28% vào khoảng 14:00.';
+      return {
+        text: 'Dữ liệu mẫu chưa có lịch sử lượt khách theo từng ngày trong tuần, nên tôi chưa thể dự báo đáng tin cậy cho cuối tuần. Dashboard hiện chỉ có chỉ số minh họa: 1.248 lượt khách hôm nay và mức tăng dự kiến 28% vào khoảng 14:00.',
+        imageUrl: '',
+        artifactName: ''
+      };
     }
     if (/thang nay|trong thang|thang/.test(query)) {
-      return 'Dashboard khách tham quan đang hiển thị 28.460 lượt trong tháng này. Đây là chỉ số mẫu của prototype, không phải dữ liệu cập nhật từ hệ thống thật.';
+      return {
+        text: 'Dashboard khách tham quan đang hiển thị 28.460 lượt trong tháng này. Đây là chỉ số mẫu của prototype, không phải dữ liệu cập nhật từ hệ thống thật.',
+        imageUrl: '',
+        artifactName: ''
+      };
     }
-    return 'Theo chỉ số mẫu trên dashboard, bảo tàng ghi nhận 1.248 lượt khách hôm nay. Gợi ý hiện tại dự báo lượng khách tăng 28% vào khoảng 14:00; đây là số liệu mô phỏng, chưa phải dự báo từ dịch vụ AI trực tuyến.';
+    return {
+      text: 'Theo chỉ số mẫu trên dashboard, bảo tàng ghi nhận 1.248 lượt khách hôm nay. Gợi ý hiện tại dự báo lượng khách tăng 28% vào khoảng 14:00; đây là số liệu mô phỏng, chưa phải dự báo từ dịch vụ AI trực tuyến.',
+      imageUrl: '',
+      artifactName: ''
+    };
   }
 
   if (artifactMatch) {
-    return `${artifactMatch.name} (${artifactMatch.id}) thuộc loại ${artifactMatch.category}, thời kỳ ${artifactMatch.period}, niên đại ${artifactMatch.year}; trạng thái hiện tại: ${artifactMatch.status}.`;
+    return {
+      text: `${artifactMatch.name} (${artifactMatch.id}) thuộc loại ${artifactMatch.category}, thời kỳ ${artifactMatch.period}, niên đại ${artifactMatch.year}; trạng thái hiện tại: ${artifactMatch.status}.`,
+      imageUrl: artifactMatch.imageUrl || '',
+      artifactName: artifactMatch.name
+    };
   }
 
   if (/hien vat|bo suu tap|collection/.test(query) && asksForCount) {
-    return `Bộ dữ liệu hiện có ${artifacts.length} hồ sơ hiện vật. ${[...new Set(artifacts.map(item => item.category))].map(value => `${value}: ${artifacts.filter(item => item.category === value).length}`).join('; ')}.`;
+    return {
+      text: `Bộ dữ liệu hiện có ${artifacts.length} hồ sơ hiện vật. ${[...new Set(artifacts.map(item => item.category))].map(value => `${value}: ${artifacts.filter(item => item.category === value).length}`).join('; ')}.`,
+      imageUrl: '',
+      artifactName: ''
+    };
   }
 
   if (/ve|dat ve|thanh toan/.test(query)) {
-    return 'Khách tham quan có thể vào “Đặt vé online”, chọn triển lãm, ngày và số lượng vé, sau đó hoàn tất ở mục “Thanh toán & lịch sử vé”. Thanh toán hiện chỉ là mô phỏng trong trình duyệt.';
+    return {
+      text: 'Khách tham quan có thể vào “Đặt vé online”, chọn triển lãm, ngày và số lượng vé, sau đó hoàn tất ở mục “Thanh toán & lịch sử vé”. Thanh toán hiện chỉ là mô phỏng trong trình duyệt.',
+      imageUrl: '',
+      artifactName: ''
+    };
   }
 
-  return `Tôi chưa tìm thấy câu trả lời cho câu hỏi này trong dữ liệu đang có. Tôi có thể tra cứu hiện vật theo tên hoặc mã, đếm theo loại hình/trạng thái, xem thông tin triển lãm, hoặc tóm tắt chỉ số khách tham quan. Hiện MuseAI đang dùng dữ liệu mẫu cục bộ, chưa kết nối mô hình AI trực tuyến.`;
+  return {
+    text: `Tôi chưa tìm thấy câu trả lời cho câu hỏi này trong dữ liệu đang có. Tôi có thể tra cứu hiện vật theo tên hoặc mã, đếm theo loại hình/trạng thái, xem thông tin triển lãm, hoặc tóm tắt chỉ số khách tham quan. Hiện MuseAI đang dùng dữ liệu mẫu cục bộ, chưa kết nối mô hình AI trực tuyến.`,
+    imageUrl: '',
+    artifactName: ''
+  };
 }
 
-function appendChatMessage(role, text) {
+function answerMuseumQuestion(question) {
+  return resolveMuseumAnswer(question).text;
+}
+
+function appendChatMessage(role, text, { imageUrl = '', alt = '' } = {}) {
   const message = document.createElement('div');
   message.className = `message ${role}`;
   if (role === 'bot') {
@@ -411,11 +478,22 @@ function appendChatMessage(role, text) {
     message.append(avatar);
   }
   const body = document.createElement('div');
+  body.className = 'message-body';
   const paragraph = document.createElement('p');
   const time = document.createElement('time');
   paragraph.textContent = text;
   time.textContent = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-  body.append(paragraph, time);
+  body.append(paragraph);
+  if (imageUrl) {
+    const media = document.createElement('div');
+    media.className = 'artifact-chat-media';
+    const img = document.createElement('img');
+    img.src = imageUrl;
+    img.alt = alt || 'Hình ảnh hiện vật';
+    media.appendChild(img);
+    body.appendChild(media);
+  }
+  body.append(time);
   message.append(body);
   document.getElementById('messages').append(message);
   return message;
@@ -436,7 +514,19 @@ function handleChat(event) {
   messages.scrollTop = messages.scrollHeight;
 
   window.setTimeout(() => {
-    loading.querySelector('p').textContent = answerMuseumQuestion(question);
+    const response = resolveMuseumAnswer(question);
+    const body = loading.querySelector('.message-body');
+    const paragraph = loading.querySelector('p');
+    paragraph.textContent = response.text;
+    if (response.imageUrl) {
+      const media = document.createElement('div');
+      media.className = 'artifact-chat-media';
+      const img = document.createElement('img');
+      img.src = response.imageUrl;
+      img.alt = response.artifactName || 'Hình ảnh hiện vật';
+      media.appendChild(img);
+      body.appendChild(media);
+    }
     sendButton.disabled = false;
     input.focus();
     messages.scrollTop = messages.scrollHeight;
