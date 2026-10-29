@@ -8,7 +8,7 @@ Mã nguồn Next.js, TypeScript, Tailwind CSS và PostgreSQL/Prisma nằm trong 
 
 ## Chạy dự án
 
-Mở trực tiếp `index.html` trong trình duyệt. Không cần cài dependency hay backend.
+Mở trực tiếp `index.html` trong trình duyệt.
 
 ## Thành phần chính
 
@@ -23,8 +23,8 @@ Mở trực tiếp `index.html` trong trình duyệt. Không cần cài dependen
 ## Tài khoản demo
 
 - Quản trị viên: `admin@musea.vn` / `Musea@2026` — toàn quyền quản lý.
-- Khách tham quan: `guest@musea.vn` / `Guest@2026` — xem tổng quan, khách tham quan, triển lãm và MuseAI.
-
+- Khách tham quan: `guest@musea.vn` / `Musea@2026` — xem tổng quan, khách tham quan, triển lãm và MuseAI.
+- Nhân viên: staff@musea.vn / Musea@2026  - quét vé, thêm hiện vật, theo rõi.
 Màn hình đăng nhập có chọn vai trò, kiểm tra thông tin, hiện/ẩn mật khẩu và nút đăng xuất. Phân quyền hiện đang chạy ở lớp giao diện prototype; khi nối backend cần lặp lại kiểm tra quyền ở API.
 
 Thanh toán hiện là luồng mô phỏng trên trình duyệt. Khi triển khai thật cần thay bằng API của MoMo/VNPay/cổng thẻ, webhook xác nhận giao dịch và không lưu thông tin thẻ nhạy cảm ở frontend.
