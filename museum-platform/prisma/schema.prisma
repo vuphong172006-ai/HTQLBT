@@ -23,6 +23,7 @@ enum ArtifactStatus {
 }
 
 enum TicketStatus {
+  PENDING_PAYMENT
   VALID
   USED
   CANCELLED
@@ -42,6 +43,8 @@ model User {
   tickets            Ticket[]          @relation("TicketOwner")
   scannedTickets     Ticket[]          @relation("TicketScanner")
   tours              Tour[]            @relation("TourGuide")
+  tourBookings       TourBooking[]
+  visits             VisitorVisit[]
 }
 
 model Artifact {
@@ -93,8 +96,52 @@ model Tour {
   guideId      String?
   route        String[]
   guide        User?    @relation("TourGuide", fields: [guideId], references: [id])
+  bookings     TourBooking[]
 
   @@unique([title, startsAt])
+}
+
+model Exhibition {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String   @db.Text
+  location    String
+  startsAt    DateTime
+  endsAt      DateTime
+  imageUrl    String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([active, startsAt, endsAt])
+}
+
+model TourBooking {
+  id        String   @id @default(cuid())
+  tourId    String
+  userId    String?
+  name      String
+  email     String
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  tour      Tour     @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tourId, createdAt])
+  @@index([email])
+}
+
+model VisitorVisit {
+  id          String   @id @default(cuid())
+  visitorName String?
+  ticketCode  String?  @unique
+  source      String   @default("WALK_IN")
+  visitedAt   DateTime @default(now())
+  recordedById String?
+  recordedBy  User?    @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@index([visitedAt])
 }
 
 model ConservationLog {
@@ -116,4 +163,16 @@ model AiMessage {
   createdAt DateTime @default(now())
 
   @@index([sessionId, createdAt])
+}
+
+model MuseumSettings {
+  id             String   @id @default("museum")
+  name           String
+  address        String
+  city           String
+  founded        Int
+  openingTime    String   @default("08:00")
+  closingTime    String   @default("17:00")
+  ticketPriceVnd Int      @default(80000)
+  updatedAt      DateTime @updatedAt
 }

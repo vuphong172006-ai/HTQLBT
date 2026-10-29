@@ -1,11 +1,12 @@
 "use client";
 
 import {
-  Activity, ArrowDownRight, ArrowLeft, ArrowRight, BadgeCheck, Bell, BookOpen,
+  Activity, ArrowDownRight, ArrowLeft, ArrowRight, BadgeCheck, Bell, BookOpen, CircleAlert,
   Camera, Check, ChevronDown, Clock3, Compass, CreditCard, ImagePlus, Landmark,
-  LayoutDashboard, LogOut, Map, Menu, QrCode, Search,
-  Settings2, ShieldCheck, Sparkles, Ticket, Users,
+  Info, LayoutDashboard, LogOut, Map, Menu, QrCode, Search,
+  Settings2, ShieldCheck, Sparkles, Ticket, Users, X,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import CustomerChatBubble from "@/components/customer-chat-bubble";
 
@@ -15,6 +16,8 @@ type Artifact = { id: string; code: string; name: string; period: string; year: 
 type TicketRecord = { id: string; code: string; visitorName: string; visitorEmail: string; visitAt: string; quantity: number; amountVnd: number; status: string };
 type Employee = { id: string; name: string; email: string; role: Role; active: boolean };
 type Tour = { id: string; title: string; startsAt: string; durationMins: number; capacity: number; guide?: { name: string } | null; route: string[] };
+type Analytics = { totalVisits: number; ticketCount: number; ticketRevenueVnd: number; activeExhibitions: number; visitsByDay: { date: string; count: number }[]; visitsByHour: { hour: string; count: number }[] };
+type MuseumSettings = { ticketPriceVnd: number; openingTime: string; closingTime: string; paymentMode: "demo" | "vnpay" };
 
 const demoAccounts = [
   { role: "ADMIN" as Role, email: "admin@musea.vn", label: "Quản trị" },
@@ -22,7 +25,7 @@ const demoAccounts = [
   { role: "CUSTOMER" as Role, email: "guest@musea.vn", label: "Khách tham quan" },
 ];
 const roleNames: Record<Role, string> = { ADMIN: "Quản trị viên", STAFF: "Nhân viên bảo tàng", CUSTOMER: "Khách tham quan" };
-const statusNames: Record<string, string> = { PENDING: "Chờ duyệt", APPROVED: "Đã duyệt", REJECTED: "Từ chối", ON_DISPLAY: "Đang trưng bày", CONSERVATION: "Bảo tồn", RESEARCH: "Nghiên cứu", VALID: "Còn hiệu lực", USED: "Đã sử dụng", CANCELLED: "Đã hủy" };
+const statusNames: Record<string, string> = { PENDING: "Chờ duyệt", PENDING_PAYMENT: "Chờ thanh toán", APPROVED: "Đã duyệt", REJECTED: "Từ chối", ON_DISPLAY: "Đang trưng bày", CONSERVATION: "Bảo tồn", RESEARCH: "Nghiên cứu", VALID: "Còn hiệu lực", USED: "Đã sử dụng", CANCELLED: "Đã hủy" };
 const money = (amount: number) => new Intl.NumberFormat("vi-VN").format(amount) + "₫";
 const dateText = (value: string) => new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
 
@@ -39,6 +42,7 @@ export default function MuseumApp() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [noticeType, setNoticeType] = useState<"success" | "error" | "info">("success");
   const [email, setEmail] = useState("admin@musea.vn");
   const [password, setPassword] = useState("Musea@2026");
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -46,6 +50,8 @@ export default function MuseumApp() {
   const [tickets, setTickets] = useState<TicketRecord[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [tours, setTours] = useState<Tour[]>([]);
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [museumSettings, setMuseumSettings] = useState<MuseumSettings>({ ticketPriceVnd: 80000, openingTime: "08:00", closingTime: "17:00", paymentMode: "demo" });
   const [query, setQuery] = useState("");
   const [route, setRoute] = useState<{ name: string; duration: number }[]>([]);
   const [routeMinutes, setRouteMinutes] = useState(120);
@@ -60,8 +66,10 @@ export default function MuseumApp() {
     const requests: Promise<void>[] = [
       api<{ artifacts: Artifact[] }>("/api/artifacts").then((data) => setArtifacts(data.artifacts)),
       api<{ tickets: TicketRecord[] }>("/api/tickets").then((data) => setTickets(data.tickets)),
+      api<{ museum: MuseumSettings }>("/api/museum").then((data) => setMuseumSettings(data.museum)),
     ];
     if (activeUser.role === "ADMIN") requests.push(api<{ employees: Employee[] }>("/api/employees").then((data) => setEmployees(data.employees)));
+    if (activeUser.role !== "CUSTOMER") requests.push(api<Analytics>("/api/analytics?days=30").then(setAnalytics));
     if (activeUser.role !== "CUSTOMER") requests.push(api<{ tours: Tour[] }>("/api/tours").then((data) => setTours(data.tours)));
     await Promise.allSettled(requests);
   };
@@ -87,14 +95,32 @@ export default function MuseumApp() {
         stream = result;
         if (videoRef.current) videoRef.current.srcObject = result;
       })
-      .catch(() => { setNotice("Không truy cập được camera. Hãy kiểm tra quyền camera hoặc dùng tra cứu ảnh."); setCameraOn(false); });
+      .catch(() => { setNotice("Không truy cập được camera. Hãy kiểm tra quyền camera hoặc dùng tra cứu ảnh."); setNoticeType("error"); setCameraOn(false); });
     return () => stream?.getTracks().forEach((track) => track.stop());
   }, [cameraOn]);
 
-  const notify = (message: string) => {
+  const notify = (message: string, type: "success" | "error" | "info" = "success") => {
     setNotice(message);
+    setNoticeType(type);
     window.setTimeout(() => setNotice(""), 3200);
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get("payment");
+    if (!payment) return;
+    const messages: Record<string, string> = {
+      success: "VNPay đã xác nhận thanh toán. Vé của bạn đã có hiệu lực.",
+      "demo-success": "Thanh toán demo thành công. Vé của bạn đã có hiệu lực; không có tiền thật được thu.",
+      "demo-cancelled": "Bạn đã hủy thanh toán demo. Vé chưa được phát hành.",
+      processing: "VNPay báo thanh toán thành công; vé đang chờ xác nhận từ máy chủ.",
+      failed: "Thanh toán chưa hoàn tất. Vé chưa được phát hành.",
+      invalid: "Không thể xác minh kết quả thanh toán từ VNPay.",
+    };
+    const type = payment === "success" || payment === "demo-success" ? "success" : payment === "processing" ? "info" : payment === "demo-cancelled" ? "info" : "error";
+    notify(messages[payment] || "Đã quay lại từ VNPay.", type);
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
 
   const refresh = () => user && loadWorkspace(user);
 
@@ -130,9 +156,9 @@ export default function MuseumApp() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     try {
-      const result = await api<{ ticket: TicketRecord }>("/api/tickets", { method: "POST", body: JSON.stringify({ visitorName: form.get("visitorName"), visitorEmail: form.get("visitorEmail"), visitAt: new Date(`${form.get("visitDate")}T${form.get("visitTime")}:00`).toISOString(), quantity: Number(form.get("quantity")) }) });
-      notify(`Đã tạo vé ${result.ticket.code}. Thanh toán cần kết nối cổng chính thức.`); refresh(); event.currentTarget.reset();
-    } catch (reason) { notify(reason instanceof Error ? reason.message : "Không tạo được vé."); }
+      const result = await api<{ ticket: TicketRecord; paymentUrl: string }>("/api/tickets", { method: "POST", body: JSON.stringify({ visitorName: form.get("visitorName"), visitorEmail: form.get("visitorEmail"), visitAt: new Date(`${form.get("visitDate")}T${form.get("visitTime")}:00`).toISOString(), quantity: Number(form.get("quantity")) }) });
+      window.location.assign(result.paymentUrl);
+    } catch (reason) { notify(reason instanceof Error ? reason.message : "Không tạo được vé.", "error"); }
   };
 
   const createArtifact = async (event: FormEvent<HTMLFormElement>) => {
@@ -187,7 +213,7 @@ export default function MuseumApp() {
     } catch (reason) { notify(reason instanceof Error ? reason.message : "Không tạo được lộ trình."); }
   };
 
-  if (!user) return <LoginScreen email={email} password={password} setEmail={setEmail} setPassword={setPassword} onLogin={login} error={error} busy={busy} />;
+  if (!user) return <LoginScreen email={email} password={password} setEmail={setEmail} setPassword={setPassword} onLogin={login} error={error} busy={busy} setError={setError} />;
 
   const pageLabels: Record<string, string> = {
     overview: "Tổng quan", tickets: "Vé tham quan", catalog: "Tra cứu hiện vật", map: "Bản đồ trưng bày", route: "Lộ trình tham quan", visual: "Tìm hiện vật bằng ảnh",
@@ -222,12 +248,12 @@ export default function MuseumApp() {
         <section className="main-column">
           <header className="topbar"><div className="crumbs"><span>Không gian bảo tàng</span><ArrowRight size={13} /><strong>{pageLabels[page] || "MUSEA"}</strong></div><div className="topbar-actions"><span className="live-chip"><i /> ĐANG HOẠT ĐỘNG</span><button className="icon-quiet notification" title="Thông báo"><Bell size={18} /><i /></button><span className="top-divider" /><span className="top-user">{user.name}</span></div></header>
           <div className="page-content">
-            {page === "overview" && <Dashboard role={user.role} artifacts={artifacts} tickets={tickets} employees={employees} tours={tours} navigate={setPage} />}
+            {page === "overview" && <Dashboard role={user.role} artifacts={artifacts} tickets={tickets} employees={employees} tours={tours} analytics={analytics} museumSettings={museumSettings} navigate={setPage} />}
             {(page === "artifacts" || page === "approvals" || page === "catalog" || page === "conservation") && <ArtifactWorkspace role={user.role} page={page} artifacts={displayedArtifacts} query={query} setQuery={setQuery} onCreate={createArtifact} onReview={reviewArtifact} onConservation={logConservation} />}
             {page === "employees" && <EmployeeWorkspace employees={employees} onCreate={createEmployee} />}
             {page === "scan" && <ScannerWorkspace scanCode={scanCode} setScanCode={setScanCode} scanResult={scanResult} onSubmit={validateTicket} />}
             {page === "tours" && <TourWorkspace tours={tours} onCreate={createTour} />}
-            {page === "tickets" && <TicketWorkspace tickets={tickets} onSubmit={buyTicket} />}
+            {page === "tickets" && <TicketWorkspace tickets={tickets} ticketPriceVnd={museumSettings.ticketPriceVnd} openingTime={museumSettings.openingTime} closingTime={museumSettings.closingTime} paymentMode={museumSettings.paymentMode} onSubmit={buyTicket} />}
             {page === "map" && <MapWorkspace />}
             {page === "route" && <RouteWorkspace minutes={routeMinutes} setMinutes={setRouteMinutes} interests={interests} setInterests={setInterests} route={route} onSuggest={suggestRoute} />}
             {page === "visual" && <VisualWorkspace imagePreview={imagePreview} setImagePreview={setImagePreview} cameraOn={cameraOn} setCameraOn={setCameraOn} videoRef={videoRef} />}
@@ -249,25 +275,28 @@ export default function MuseumApp() {
           </div>
         </div>
       )}
-      {notice && <div className="toast-message"><Check size={16} />{notice}</div>}
+      {notice && <div className={`toast-message ${noticeType}`} role={noticeType === "error" ? "alert" : "status"}>{noticeType === "error" ? <CircleAlert size={16} /> : noticeType === "info" ? <Info size={16} /> : <Check size={16} />}{notice}</div>}
     </main>
   );
 }
 
-function LoginScreen({ email, password, setEmail, setPassword, onLogin, error, busy }: { email: string; password: string; setEmail: (value: string) => void; setPassword: (value: string) => void; onLogin: (event: FormEvent) => void; error: string; busy: boolean }) {
-  return <main className="login-page"><section className="login-visual"><div className="brand-lockup light"><span className="brand-mark"><Landmark size={20} /></span><span><strong>MUSEA</strong><small>HERITAGE INTELLIGENCE</small></span></div><div className="login-art"><div className="art-ring ring-one" /><div className="art-ring ring-two" /><div className="artifact-emblem"><Landmark size={70} strokeWidth={1} /></div><span className="art-label">NATIONAL HERITAGE COLLECTION · EST. 1958</span></div><div className="login-manifesto"><span className="eyebrow gold-text">DI SẢN · NGHIÊN CỨU · KẾT NỐI</span><h1>Những câu chuyện<br />được gìn giữ <em>qua thời gian.</em></h1><p>Một không gian vận hành bảo tàng thống nhất, dành cho người giữ gìn và khám phá di sản.</p></div><div className="visual-footer"><span>HỆ THỐNG QUẢN LÝ BẢO TÀNG</span><span>01 / 03</span></div></section><section className="login-panel"><div className="login-box"><p className="eyebrow">CỔNG ĐĂNG NHẬP</p><h2>Chào mừng trở lại</h2><p className="muted">Đăng nhập bằng tài khoản bảo tàng của bạn.</p><form onSubmit={onLogin} className="login-form"><label>Email công việc<input type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><label>Mật khẩu<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>{error && <p className="form-error">{error}</p>}<button className="button-primary wide" disabled={busy}>{busy ? "Đang xác thực…" : "Đăng nhập"}<ArrowRight size={16} /></button></form><div className="demo-accounts"><span>TÀI KHOẢN DEMO</span><div>{demoAccounts.map((account) => <button key={account.role} onClick={() => { setEmail(account.email); setPassword("Musea@2026"); }}><b>{account.label}</b><small>{account.email}</small></button>)}</div><p>Mật khẩu demo: <b>Musea@2026</b></p></div><div className="login-legal"><ShieldCheck size={15} /> Phiên đăng nhập được bảo vệ bằng cookie HTTP-only.</div></div></section></main>;
+function LoginScreen({ email, password, setEmail, setPassword, onLogin, error, busy, setError }: { email: string; password: string; setEmail: (value: string) => void; setPassword: (value: string) => void; onLogin: (event: FormEvent) => void; error: string; busy: boolean; setError: (value: string) => void }) {
+  const hasDatabaseWarning = error.includes("DATABASE_URL") || error.includes("không thể kết nối cơ sở dữ liệu");
+  return <main className="login-page"><section className="login-visual"><div className="brand-lockup light"><span className="brand-mark"><Landmark size={20} /></span><span><strong>MUSEA</strong><small>HERITAGE INTELLIGENCE</small></span></div><div className="login-art"><div className="art-ring ring-one" /><div className="art-ring ring-two" /><div className="artifact-emblem"><Landmark size={70} strokeWidth={1} /></div><span className="art-label">NATIONAL HERITAGE COLLECTION · EST. 1958</span></div><div className="login-manifesto"><span className="eyebrow gold-text">DI SẢN · NGHIÊN CỨU · KẾT NỐI</span><h1>Những câu chuyện<br />được gìn giữ <em>qua thời gian.</em></h1><p>Một không gian vận hành bảo tàng thống nhất, dành cho người giữ gìn và khám phá di sản.</p></div><div className="visual-footer"><span>HỆ THỐNG QUẢN LÝ BẢO TÀNG</span><span>01 / 03</span></div></section><section className="login-panel"><div className="login-box"><p className="eyebrow">CỔNG ĐĂNG NHẬP</p><h2>Chào mừng trở lại</h2><p className="muted">Đăng nhập bằng tài khoản bảo tàng của bạn.</p><form onSubmit={onLogin} className="login-form"><label>Email công việc<input type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><label>Mật khẩu<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>{error && <p className={`form-error ${hasDatabaseWarning ? "database-alert" : ""}`}>{error}</p>}{hasDatabaseWarning && <div className="database-warning"><p>Nếu bạn muốn chạy với database thật,<br />hãy đảm bảo PostgreSQL đang chạy và<br />chỉnh đúng URL trong <strong>.env</strong>.</p><button type="button" className="button-primary wide database-warning-button" onClick={() => setError("")}><span>Đăng nhập</span><ArrowRight size={16} /></button></div>}{!hasDatabaseWarning && <button className="button-primary wide" disabled={busy}>{busy ? "Đang xác thực…" : "Đăng nhập"}<ArrowRight size={16} /></button>}</form><div className="demo-accounts"><span>TÀI KHOẢN DEMO</span><div>{demoAccounts.map((account) => <button key={account.role} onClick={() => { setEmail(account.email); setPassword("Musea@2026"); }}><b>{account.label}</b><small>{account.email}</small></button>)}</div><p>Mật khẩu demo: <b>Musea@2026</b></p></div><div className="login-legal"><ShieldCheck size={15} /> Phiên đăng nhập được bảo vệ bằng cookie HTTP-only.</div></div></section></main>;
 }
 
 function PageHeading({ eyebrow, title, subtitle, action }: { eyebrow: string; title: string; subtitle: string; action?: React.ReactNode }) {
   return <div className="page-heading"><div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p className="muted">{subtitle}</p></div>{action}</div>;
 }
 
-function Dashboard({ role, artifacts, tickets, employees, tours, navigate }: { role: Role; artifacts: Artifact[]; tickets: TicketRecord[]; employees: Employee[]; tours: Tour[]; navigate: (page: string) => void }) {
+function Dashboard({ role, artifacts, tickets, employees, tours, analytics, museumSettings, navigate }: { role: Role; artifacts: Artifact[]; tickets: TicketRecord[]; employees: Employee[]; tours: Tour[]; analytics: Analytics | null; museumSettings: MuseumSettings; navigate: (page: string) => void }) {
   const pending = artifacts.filter((item) => item.status === "PENDING").length;
-  const revenue = tickets.filter((ticket) => ticket.status !== "CANCELLED").reduce((sum, ticket) => sum + ticket.amountVnd, 0);
-  if (role === "CUSTOMER") return <TicketWorkspace tickets={tickets} onSubmit={() => undefined} />;
+  const revenue = analytics?.ticketRevenueVnd ?? tickets.filter((ticket) => ticket.status !== "CANCELLED").reduce((sum, ticket) => sum + ticket.amountVnd, 0);
+  const visitsToday = analytics?.visitsByDay.find((row) => row.date === new Date().toISOString().slice(0, 10))?.count ?? 0;
+  const hourlyBars = (analytics?.visitsByHour ?? []).map((row) => ({ label: row.hour.slice(0, 2), value: row.count }));
+  if (role === "CUSTOMER") return <TicketWorkspace tickets={tickets} ticketPriceVnd={museumSettings.ticketPriceVnd} openingTime={museumSettings.openingTime} closingTime={museumSettings.closingTime} paymentMode={museumSettings.paymentMode} onSubmit={() => undefined} />;
   if (role === "STAFF") return <><PageHeading eyebrow="CA TRỰC · HÔM NAY" title="Chào buổi sáng, đội ngũ bảo tàng" subtitle="Các tác vụ đang chờ trong ca làm việc của bạn." /><section className="metric-grid three"><Metric label="Vé chờ soát" value="18" note="Khách dự kiến trong giờ tới" icon={<QrCode />} trend="Từ hệ thống quét" /><Metric label="Hiện vật theo dõi" value={String(artifacts.filter((item) => item.status === "CONSERVATION").length).padStart(2, "0")} note="Cần cập nhật bảo tồn" icon={<ShieldCheck />} trend="Đang cần kiểm tra" /><Metric label="Tour trong ngày" value={String(tours.length).padStart(2, "0")} note="Lịch hướng dẫn đang mở" icon={<Compass />} trend="Đội hướng dẫn sẵn sàng" /></section><section className="dashboard-lower"><div className="panel-card"><div className="panel-title"><div><h2>Việc cần làm</h2><p>Truy cập nhanh các tác vụ trong ca</p></div></div><div className="task-list"><Task title="Quét vé tại cổng" detail="Xác nhận vé và chống dùng lại" icon={<QrCode />} action="scan" navigate={navigate} /><Task title="Cập nhật hồ sơ bảo tồn" detail="Ghi chú tình trạng hiện vật" icon={<ShieldCheck />} action="conservation" navigate={navigate} /><Task title="Xem lịch tour" detail="Kiểm tra giờ và hướng dẫn viên" icon={<Compass />} action="tours" navigate={navigate} /></div></div><div className="panel-card blue-panel"><span className="eyebrow">LƯU Ý VẬN HÀNH</span><h2>Ghi chép đầy đủ<br />mỗi lần bàn giao.</h2><p>Nhật ký bảo tồn gắn với người thực hiện và thời điểm cập nhật.</p><button className="button-ghost" onClick={() => navigate("conservation")}>Mở sổ bảo tồn <ArrowRight size={15} /></button></div></section></>;
-  return <><PageHeading eyebrow="THỨ BẢY · 26 THÁNG 09, 2026" title="Tổng quan vận hành" subtitle="Tình hình bảo tàng được tổng hợp từ dữ liệu vé và bộ sưu tập." action={<button className="button-secondary" onClick={() => navigate("artifacts")}><ImagePlus size={16} /> Thêm hiện vật</button>} /><section className="metric-grid"> <Metric label="Doanh thu ghi nhận" value={money(revenue)} note="Tổng vé còn hiệu lực và đã dùng" icon={<CreditCard />} trend="Từ dữ liệu vé" /><Metric label="Khách tham quan hôm nay" value="1.248" note="Lượt vào cổng ghi nhận" icon={<Users />} trend="+8,4% tuần này" /><Metric label="Hồ sơ hiện vật" value={String(artifacts.length).padStart(2, "0")} note={`${pending} hồ sơ cần phê duyệt`} icon={<Landmark />} trend={pending ? `${pending} chờ duyệt` : "Đã đồng bộ"} /><Metric label="Nhân sự hoạt động" value={String(employees.length).padStart(2, "0")} note="Tài khoản quản trị và nhân viên" icon={<Activity />} trend="Đang trực" /></section><section className="dashboard-lower"><div className="panel-card chart-panel"><div className="panel-title"><div><h2>Lượt khách theo khung giờ</h2><p>Phân bố mô phỏng từ dữ liệu hiện tại</p></div><span className="period-tag">HÔM NAY <ChevronDown size={14} /></span></div><div className="chart-legend"><span><i /> Lượt vào cổng</span><small>Đỉnh dự kiến 14:00–16:00</small></div><div className="bar-chart">{[{ label: "08", value: 44 }, { label: "10", value: 67 }, { label: "12", value: 39 }, { label: "14", value: 88 }, { label: "16", value: 71 }, { label: "18", value: 28 }].map((bar) => <div className="bar-column" key={bar.label}><span style={{ height: `${bar.value}%` }} /><small>{bar.label}:00</small></div>)}</div></div><div className="panel-card"><div className="panel-title"><div><h2>Phê duyệt hiện vật</h2><p>Hồ sơ gửi bởi nhân viên</p></div><button className="text-link" onClick={() => navigate("approvals")}>Xem hàng đợi <ArrowRight size={14} /></button></div>{pending ? <div className="review-callout"><span className="gold-icon"><BadgeCheck size={18} /></span><div><strong>{pending} hồ sơ chờ xử lý</strong><small>Kiểm tra nguồn gốc và thông tin trưng bày</small></div><button className="arrow-action" onClick={() => navigate("approvals")}><ArrowRight size={16} /></button></div> : <div className="empty-state compact">Không có hồ sơ chờ duyệt.</div>}<div className="mini-stat-row"><span>Nhân sự trong hệ thống</span><b>{employees.length}</b></div><div className="mini-stat-row"><span>Vé trong cơ sở dữ liệu</span><b>{tickets.length}</b></div></div></section></>;
+  return <><PageHeading eyebrow="TỔNG QUAN VẬN HÀNH" title="Tổng quan vận hành" subtitle="Số liệu tổng hợp từ lượt vào cổng, vé và bộ sưu tập." action={<button className="button-secondary" onClick={() => navigate("artifacts")}><ImagePlus size={16} /> Thêm hiện vật</button>} /><section className="metric-grid"> <Metric label="Doanh thu ghi nhận" value={money(revenue)} note="Từ vé đã thanh toán" icon={<CreditCard />} trend="30 ngày gần nhất" /><Metric label="Khách tham quan hôm nay" value={visitsToday.toLocaleString("vi-VN")} note="Lượt vào cổng được ghi nhận" icon={<Users />} trend={analytics ? "Dữ liệu lượt vào" : "Đang tải dữ liệu"} /><Metric label="Hồ sơ hiện vật" value={String(artifacts.length).padStart(2, "0")} note={`${pending} hồ sơ cần phê duyệt`} icon={<Landmark />} trend={pending ? `${pending} chờ duyệt` : "Đã đồng bộ"} /><Metric label="Nhân sự hoạt động" value={String(employees.length).padStart(2, "0")} note="Tài khoản quản trị và nhân viên" icon={<Activity />} trend="Đang trực" /></section><section className="dashboard-lower"><div className="panel-card chart-panel"><div className="panel-title"><div><h2>Lượt khách theo khung giờ</h2><p>Phân bố từ lượt vào cổng được ghi nhận</p></div><span className="period-tag">HÔM NAY <ChevronDown size={14} /></span></div><div className="chart-legend"><span><i /> Lượt vào cổng</span><small>{analytics?.totalVisits ?? 0} lượt trong 30 ngày</small></div><div className="bar-chart">{hourlyBars.map((bar) => <div className="bar-column" key={bar.label}><span style={{ height: `${Math.max(4, Math.round(bar.value * 100 / Math.max(1, ...hourlyBars.map((item) => item.value))))}%` }} /><small>{bar.label}:00</small></div>)}</div></div><div className="panel-card"><div className="panel-title"><div><h2>Phê duyệt hiện vật</h2><p>Hồ sơ gửi bởi nhân viên</p></div><button className="text-link" onClick={() => navigate("approvals")}>Xem hàng đợi <ArrowRight size={14} /></button></div>{pending ? <div className="review-callout"><span className="gold-icon"><BadgeCheck size={18} /></span><div><strong>{pending} hồ sơ chờ xử lý</strong><small>Kiểm tra nguồn gốc và thông tin trưng bày</small></div><button className="arrow-action" onClick={() => navigate("approvals")}><ArrowRight size={16} /></button></div> : <div className="empty-state compact">Không có hồ sơ chờ duyệt.</div>}<div className="mini-stat-row"><span>Nhân sự trong hệ thống</span><b>{employees.length}</b></div><div className="mini-stat-row"><span>Vé trong cơ sở dữ liệu</span><b>{analytics?.ticketCount ?? tickets.length}</b></div><div className="mini-stat-row"><span>Triển lãm đang mở</span><b>{analytics?.activeExhibitions ?? 0}</b></div></div></section></>;
 }
 
 function Metric({ label, value, note, icon, trend }: { label: string; value: string; note: string; icon: React.ReactNode; trend: string }) {
@@ -299,8 +328,109 @@ function TourWorkspace({ tours, onCreate }: { tours: Tour[]; onCreate: (event: F
   return <><PageHeading eyebrow="ĐIỀU PHỐI HƯỚNG DẪN" title="Lịch tour bảo tàng" subtitle="Theo dõi hướng dẫn viên, thời lượng và sức chứa tour." /><div className="split-layout"><form className="panel-card form-stack" onSubmit={onCreate}><div className="panel-title"><div><h2>Tạo lịch tour</h2><p>Điều phối ca hướng dẫn tiếp theo</p></div><Compass size={18} /></div><label>Tên tour<input name="title" placeholder="Dấu ấn Đông Sơn" required /></label><div className="field-pair"><label>Ngày<input name="date" type="date" required /></label><label>Giờ<input name="time" type="time" required /></label></div><div className="field-pair"><label>Thời lượng (phút)<input name="durationMins" type="number" min="15" max="240" defaultValue="60" required /></label><label>Sức chứa<input name="capacity" type="number" min="1" max="50" defaultValue="15" required /></label></div><label>Các điểm tham quan<input name="route" placeholder="Đông Sơn, Trống đồng Ngọc Lũ" required /></label><button className="button-primary" type="submit"><Compass size={15} />Lưu lịch tour</button></form><div className="panel-card"><div className="panel-title"><div><h2>Lịch sắp tới</h2><p>{tours.length} tour được lập lịch</p></div><Clock3 size={18} /></div><div className="tour-list">{tours.map((tour) => <article className="tour-row" key={tour.id}><div className="tour-time"><strong>{new Date(tour.startsAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</strong><small>{new Date(tour.startsAt).toLocaleDateString("vi-VN")}</small></div><div><strong>{tour.title}</strong><small>{tour.durationMins} phút · Tối đa {tour.capacity} khách · {tour.guide?.name || "Chưa phân hướng dẫn viên"}</small><span>{tour.route.join(" → ")}</span></div></article>)}{tours.length === 0 && <div className="empty-state">Chưa có lịch tour. Tạo tour đầu tiên ở biểu mẫu bên cạnh.</div>}</div></div></div></>;
 }
 
-function TicketWorkspace({ tickets, onSubmit }: { tickets: TicketRecord[]; onSubmit: (event: FormEvent<HTMLFormElement>) => void }) {
-  return <><PageHeading eyebrow="VÉ ĐIỆN TỬ · ĐẶT TRƯỚC" title="Một ngày giữa di sản" subtitle="Chọn ngày tham quan, đặt vé và lưu mã QR trong tài khoản của bạn." action={<span className="secure-note"><ShieldCheck size={15} /> Đặt vé an toàn</span>} /><div className="ticket-layout"><form className="panel-card ticket-form" onSubmit={onSubmit}><div className="section-marker"><span>01</span><div><strong>Lịch tham quan</strong><small>Vé tiêu chuẩn · 80.000₫ mỗi khách</small></div></div><div className="field-pair"><label>Ngày tham quan<input name="visitDate" type="date" min={new Date().toISOString().slice(0, 10)} required /></label><label>Khung giờ<select name="visitTime"><option value="09:00">09:00 — 11:00</option><option value="11:00">11:00 — 13:00</option><option value="14:00">14:00 — 16:00</option><option value="16:00">16:00 — 18:00</option></select></label></div><div className="section-marker second"><span>02</span><div><strong>Thông tin nhận vé</strong><small>Mã vé được lưu trong tài khoản khách hàng</small></div></div><label>Họ và tên<input name="visitorName" defaultValue="" placeholder="Nguyễn Văn A" required /></label><label>Email<input name="visitorEmail" type="email" placeholder="email@example.com" required /></label><label>Số lượng vé<select name="quantity"><option value="1">1 người</option><option value="2">2 người</option><option value="3">3 người</option><option value="4">4 người</option></select></label><button className="button-primary wide" type="submit"><Ticket size={16} />Tạo vé tham quan</button><small className="form-footnote">Thanh toán trực tuyến cần cấu hình cổng MoMo, VNPay hoặc đối tác được cấp phép.</small></form><aside className="ticket-aside"><div className="ticket-feature"><div className="feature-top"><Landmark size={18} /><span>QUỐC BẢO · VĂN HÓA ĐÔNG SƠN</span></div><div className="feature-illustration"><div className="sun-disc" /><div className="drum-disc"><span>✦</span><i /><i /><i /></div></div><div className="feature-copy"><span>TRẢI NGHIỆM ĐẶC SẮC</span><h2>Dấu ấn<br /><em>nghìn năm.</em></h2><p>Khám phá trống đồng Ngọc Lũ và những câu chuyện của người Việt cổ.</p></div></div><div className="panel-card ticket-history"><div className="panel-title"><div><h2>Vé của tôi</h2><p>{tickets.length} vé trong tài khoản</p></div><Ticket size={18} /></div>{tickets.map((ticket) => <div className="owned-ticket" key={ticket.id}><span className="ticket-stub"><QrCode size={22} /></span><span><strong>{ticket.code}</strong><small>{dateText(ticket.visitAt)} · {ticket.quantity} khách</small></span><b>{statusNames[ticket.status]}</b></div>)}</div></aside></div></>;
+function TicketWorkspace({ tickets, ticketPriceVnd, openingTime, closingTime, paymentMode, onSubmit }: { tickets: TicketRecord[]; ticketPriceVnd: number; openingTime: string; closingTime: string; paymentMode: "demo" | "vnpay"; onSubmit: (event: FormEvent<HTMLFormElement>) => void }) {
+  const [selectedTicket, setSelectedTicket] = useState<TicketRecord | null>(null);
+  const startHour = Number(openingTime.slice(0, 2));
+  const closeHour = Number(closingTime.slice(0, 2));
+  const visitSlots = Array.from({ length: Math.max(0, Math.ceil((closeHour - startHour) / 2)) }, (_, index) => {
+    const start = startHour + index * 2;
+    const end = Math.min(start + 2, closeHour);
+    return { start: `${String(start).padStart(2, "0")}:00`, end: `${String(end).padStart(2, "0")}:00` };
+  });
+
+  useEffect(() => {
+    if (!selectedTicket) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedTicket(null);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [selectedTicket]);
+
+  return (
+    <>
+      <PageHeading
+        eyebrow="VÉ ĐIỆN TỬ · ĐẶT TRƯỚC"
+        title="Một ngày giữa di sản"
+        subtitle="Chọn ngày tham quan, đặt vé và lưu mã QR trong tài khoản của bạn."
+        action={<span className="secure-note"><ShieldCheck size={15} /> Đặt vé an toàn</span>}
+      />
+      <div className="ticket-layout">
+        <form className="panel-card ticket-form" onSubmit={onSubmit}>
+          <div className="section-marker">
+            <span>01</span>
+            <div><strong>Lịch tham quan</strong><small>Vé tiêu chuẩn · {money(ticketPriceVnd)} mỗi khách</small></div>
+          </div>
+          <div className="field-pair">
+            <label>Ngày tham quan<input name="visitDate" type="date" min={new Date().toISOString().slice(0, 10)} required /></label>
+            <label>Khung giờ<select name="visitTime">{visitSlots.map((slot) => <option key={slot.start} value={slot.start}>{slot.start} — {slot.end}</option>)}</select></label>
+          </div>
+          <div className="section-marker second">
+            <span>02</span>
+            <div><strong>Thông tin nhận vé</strong><small>Mã vé được lưu trong tài khoản khách hàng</small></div>
+          </div>
+          <label>Họ và tên<input name="visitorName" defaultValue="" placeholder="Nguyễn Văn A" required /></label>
+          <label>Email<input name="visitorEmail" type="email" placeholder="email@example.com" required /></label>
+          <label>Số lượng vé<select name="quantity"><option value="1">1 người</option><option value="2">2 người</option><option value="3">3 người</option><option value="4">4 người</option></select></label>
+          <div className="payment-method">
+            <span className="payment-method-icon"><CreditCard size={18} /></span>
+            <span className="payment-method-copy"><strong>{paymentMode === "demo" ? "Thanh toán mô phỏng" : "Thanh toán qua VNPay"}</strong><small>{paymentMode === "demo" ? "Xác nhận giả lập · không thu tiền thật" : "Thẻ ngân hàng, ứng dụng hoặc VNPay-QR"}</small></span>
+            <span className="payment-sandbox">{paymentMode === "demo" ? "DEMO" : "SANDBOX"}</span>
+          </div>
+          <button className="button-primary wide" type="submit"><CreditCard size={16} />Tiếp tục thanh toán</button>
+          <small className="form-footnote">{paymentMode === "demo" ? "Vé có hiệu lực sau khi bạn xác nhận ở màn hình thanh toán demo." : "Vé chỉ có hiệu lực sau khi VNPay xác nhận giao dịch."}</small>
+        </form>
+        <aside className="ticket-aside">
+          <div className="ticket-feature">
+            <div className="feature-top"><Landmark size={18} /><span>QUỐC BẢO · VĂN HÓA ĐÔNG SƠN</span></div>
+            <div className="feature-illustration"><div className="sun-disc" /><div className="drum-disc"><span>✦</span><i /><i /><i /></div></div>
+            <div className="feature-copy"><span>TRẢI NGHIỆM ĐẶC SẮC</span><h2>Dấu ấn<br /><em>nghìn năm.</em></h2><p>Khám phá trống đồng Ngọc Lũ và những câu chuyện của người Việt cổ.</p></div>
+          </div>
+          <div className="panel-card ticket-history">
+            <div className="panel-title"><div><h2>Vé của tôi</h2><p>{tickets.length} vé trong tài khoản</p></div><Ticket size={18} /></div>
+            {tickets.map((ticket) => ticket.status === "VALID" || ticket.status === "USED" ? (
+              <button
+                className="owned-ticket"
+                key={ticket.id}
+                type="button"
+                aria-label={`Hiển thị mã QR vé ${ticket.code}`}
+                onClick={() => setSelectedTicket(ticket)}
+              >
+                <span className="ticket-stub"><QrCode size={22} /></span>
+                <span><strong>{ticket.code}</strong><small>{dateText(ticket.visitAt)} · {ticket.quantity} khách</small></span>
+                <b>{statusNames[ticket.status]}</b>
+              </button>
+            ) : (
+              <div className={`owned-ticket ${ticket.status === "PENDING_PAYMENT" ? "pending-ticket" : "cancelled-ticket"}`} key={ticket.id}>
+                <span className="ticket-stub">{ticket.status === "PENDING_PAYMENT" ? <Clock3 size={20} /> : <X size={20} />}</span>
+                <span><strong>{ticket.code}</strong><small>{dateText(ticket.visitAt)} · {ticket.quantity} khách</small></span>
+                <b>{statusNames[ticket.status]}</b>
+              </div>
+            ))}
+          </div>
+        </aside>
+      </div>
+      {selectedTicket && (
+        <div className="ticket-qr-backdrop" onClick={() => setSelectedTicket(null)}>
+          <section
+            className="ticket-qr-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ticket-qr-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button className="icon-quiet ticket-qr-close" type="button" aria-label="Đóng mã QR" onClick={() => setSelectedTicket(null)}><X size={18} /></button>
+            <span className="eyebrow">VÉ ĐIỆN TỬ</span>
+            <h2 id="ticket-qr-title">Mã QR vào cổng</h2>
+            <div className="ticket-qr-code"><QRCodeSVG value={selectedTicket.code} size={220} level="M" includeMargin /></div>
+            <strong className="ticket-qr-number">{selectedTicket.code}</strong>
+            <p>{dateText(selectedTicket.visitAt)} · {selectedTicket.quantity} khách</p>
+            <small>Đưa mã này cho nhân viên tại cổng để xác thực vé.</small>
+          </section>
+        </div>
+      )}
+    </>
+  );
 }
 
 function MapWorkspace() {

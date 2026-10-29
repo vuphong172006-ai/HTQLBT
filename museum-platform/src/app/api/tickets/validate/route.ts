@@ -14,9 +14,16 @@ export async function POST(request: Request) {
     if (!ticket) return Response.json({ error: "Không tìm thấy vé." }, { status: 404 });
     if (ticket.status !== TicketStatus.VALID) return Response.json({ error: ticket.status === TicketStatus.USED ? "Vé đã được sử dụng." : "Vé đã bị hủy." }, { status: 409 });
     if (ticket.visitAt.toDateString() !== new Date().toDateString()) return Response.json({ error: "Vé không có hiệu lực trong ngày hôm nay." }, { status: 409 });
-    const updated = await prisma.ticket.update({ where: { id: ticket.id, status: TicketStatus.VALID }, data: { status: TicketStatus.USED, scannedAt: new Date(), scannedById: user.id } });
+    const scannedAt = new Date();
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.ticket.updateMany({ where: { id: ticket.id, status: TicketStatus.VALID }, data: { status: TicketStatus.USED, scannedAt, scannedById: user.id } });
+      if (result.count === 0) throw new Error("TICKET_ALREADY_USED");
+      await tx.visitorVisit.create({ data: { visitorName: ticket.visitorName, ticketCode: ticket.code, source: "TICKET", visitedAt: scannedAt, recordedById: user.id } });
+      return tx.ticket.findUniqueOrThrow({ where: { id: ticket.id } });
+    });
     return Response.json({ ticket: updated });
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === "TICKET_ALREADY_USED") return Response.json({ error: "Vé đã được sử dụng." }, { status: 409 });
     return Response.json({ error: "Không thể xác thực vé." }, { status: 503 });
   }
 }

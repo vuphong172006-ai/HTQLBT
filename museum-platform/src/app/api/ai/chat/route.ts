@@ -2,21 +2,20 @@ import { Role } from "@prisma/client";
 import { z } from "zod";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { museumFacts } from "@/lib/museum-data";
 
 const questionSchema = z.object({ message: z.string().trim().min(1).max(1200), sessionId: z.string().max(100).optional() });
 
-function localAnswer(question: string, context: string) {
+function localAnswer(question: string, context: string, facts: { exhibitions: string[]; todayVisitors: number; monthVisitors: number; ticketPriceVnd: number; openingTime: string; closingTime: string }) {
   const normalized = question.toLocaleLowerCase("vi-VN");
-  if (/giờ mở cửa|mấy giờ|mở cửa|đóng cửa|thời gian hoạt động/.test(normalized)) return "Theo thông tin tham khảo của bản demo, bảo tàng mở cửa từ 08:00 đến 17:00. Lịch ngày lễ có thể thay đổi; vui lòng kiểm tra thông báo chính thức trước chuyến đi.";
+  if (/giờ mở cửa|mấy giờ|mở cửa|đóng cửa|thời gian hoạt động/.test(normalized)) return `Theo cấu hình hiện tại, bảo tàng mở cửa từ ${facts.openingTime} đến ${facts.closingTime}. Lịch ngày lễ có thể thay đổi; vui lòng kiểm tra thông báo trước chuyến đi.`;
   if (/địa chỉ|ở đâu|đường nào|vị trí/.test(normalized)) return "Bản demo chưa cấu hình địa chỉ và bản đồ chỉ đường chính thức. Bạn có thể xem sơ đồ các khu trưng bày trong mục “Bản đồ”; hãy xác nhận địa chỉ trên kênh chính thức của bảo tàng trước khi khởi hành.";
-  if (/giá vé|bao nhiêu tiền|phí vào cửa|vé bao nhiêu/.test(normalized)) return "Giá vé tham khảo trong bản demo là 80.000₫/người. Mức giá này chỉ dùng để minh họa luồng đặt vé, vui lòng xác nhận giá hiện hành với bảo tàng.";
-  if (/đặt vé|mua vé|vé online|vé trực tuyến/.test(normalized)) return "Bạn có thể mở mục “Vé tham quan”, chọn ngày, khung giờ và số lượng khách rồi tạo vé. Luồng thanh toán trực tuyến chưa được kết nối cổng thanh toán thật; mã vé demo không thay thế vé đã thanh toán.";
+  if (/giá vé|bao nhiêu tiền|phí vào cửa|vé bao nhiêu/.test(normalized)) return `Giá vé tiêu chuẩn hiện được cấu hình là ${facts.ticketPriceVnd.toLocaleString("vi-VN")}₫/người.`;
+  if (/đặt vé|mua vé|vé online|vé trực tuyến/.test(normalized)) return "Bạn có thể mở mục “Vé tham quan”, chọn ngày, khung giờ và số lượng khách rồi tiếp tục thanh toán qua VNPay sandbox. Vé chỉ có hiệu lực sau khi VNPay xác nhận qua IPN; cần cấu hình merchant keys trong .env.";
   if (/trẻ em|trẻ nhỏ|em bé|miễn phí/.test(normalized)) return "Chính sách giá vé trẻ em và miễn phí chưa được cấu hình trong bản demo. Hãy hỏi quầy vé để xác nhận độ tuổi áp dụng và giấy tờ cần mang theo.";
   if (/hiện vật|hiện vật nào|bộ sưu tập|mã hiện vật/.test(normalized)) return `Thông tin bộ sưu tập hiện có:\n${context || "Chưa có hồ sơ hiện vật trong cơ sở dữ liệu."}`;
-  if (/triển lãm/.test(normalized)) return `Bảo tàng có ${museumFacts.exhibitions.length} triển lãm trong bộ dữ liệu mẫu: ${museumFacts.exhibitions.map((item) => `${item.name} (${item.visitors.toLocaleString("vi-VN")} lượt khách, tiến độ ${item.progress}%)`).join("; ")}.`;
-  if (/khách|lượt|tham quan|đông/.test(normalized)) return `Dashboard mẫu ghi nhận ${museumFacts.visitorToday.toLocaleString("vi-VN")} lượt khách hôm nay và ${museumFacts.monthlyVisitors.toLocaleString("vi-VN")} lượt trong tháng. Đây là dữ liệu minh họa; cần nguồn analytics thực tế để có số liệu vận hành.`;
-  if (/vé|đặt vé|giá/.test(normalized)) return "Bạn có thể đặt vé ngay trong mục Vé tham quan. Giá demo hiện là 80.000đ/người; thanh toán và phát hành vé production cần tích hợp cổng thanh toán thật.";
+  if (/triển lãm/.test(normalized)) return facts.exhibitions.length ? `Triển lãm đang hoạt động: ${facts.exhibitions.join("; ")}.` : "Hiện chưa có triển lãm đang hoạt động trong cơ sở dữ liệu.";
+  if (/khách|lượt|tham quan|đông/.test(normalized)) return `Cơ sở dữ liệu ghi nhận ${facts.todayVisitors.toLocaleString("vi-VN")} lượt khách hôm nay và ${facts.monthVisitors.toLocaleString("vi-VN")} lượt trong 30 ngày gần nhất.`;
+  if (/vé|đặt vé|giá/.test(normalized)) return "Bạn có thể đặt vé trong mục Vé tham quan với giá sandbox 80.000đ/người và thanh toán qua VNPay. Vé chỉ có hiệu lực sau khi IPN xác nhận; production cần merchant credentials và cấu hình endpoint production riêng.";
   return `Tôi đã tra cứu dữ liệu bảo tàng nhưng chưa tìm thấy câu trả lời cụ thể. Bạn có thể hỏi về hiện vật, triển lãm, lượng khách hoặc vé.\n\n${context ? `Một số hồ sơ hiện vật liên quan:\n${context}` : ""}`;
 }
 
@@ -40,7 +39,17 @@ export async function POST(request: Request) {
       select: { code: true, name: true, period: true, year: true, category: true, status: true, description: true },
     });
     const context = matches.map((item) => `${item.name} (${item.code}) — ${item.category}, ${item.period}, ${item.year}; ${item.status}. ${item.description}`).join("\n");
-    let answer = localAnswer(parsed.data.message, context);
+    const now = new Date();
+    const today = new Date(now); today.setHours(0, 0, 0, 0);
+    const monthStart = new Date(now); monthStart.setDate(now.getDate() - 30);
+    const [exhibitions, todayVisitors, monthVisitors, settings] = await Promise.all([
+      prisma.exhibition.findMany({ where: { active: true, startsAt: { lte: now }, endsAt: { gte: now } }, select: { name: true, location: true, startsAt: true, endsAt: true } }),
+      prisma.visitorVisit.count({ where: { visitedAt: { gte: today } } }),
+      prisma.visitorVisit.count({ where: { visitedAt: { gte: monthStart } } }),
+      prisma.museumSettings.findUnique({ where: { id: "museum" } }),
+    ]);
+    const facts = { exhibitions: exhibitions.map((item) => `${item.name} tại ${item.location} (${item.startsAt.toLocaleDateString("vi-VN")}–${item.endsAt.toLocaleDateString("vi-VN")})`), todayVisitors, monthVisitors, ticketPriceVnd: settings?.ticketPriceVnd ?? 0, openingTime: settings?.openingTime ?? "chưa cấu hình", closingTime: settings?.closingTime ?? "chưa cấu hình" };
+    let answer = localAnswer(parsed.data.message, context, facts);
     let provider = "museum-data";
 
     if (process.env.OPENAI_API_KEY) {
@@ -52,7 +61,7 @@ export async function POST(request: Request) {
           temperature: 0.3,
           messages: [
             { role: "system", content: "Bạn là MuseAI, trợ lý bảo tàng. Trả lời bằng tiếng Việt, ngắn gọn, chỉ khẳng định điều có trong ngữ cảnh; nói rõ khi dữ liệu không có. Không tự bịa số liệu." },
-            { role: "user", content: `Ngữ cảnh dữ liệu bảo tàng:\n${context || "Không có hiện vật phù hợp."}\n\nCâu hỏi: ${parsed.data.message}` },
+            { role: "user", content: `Ngữ cảnh dữ liệu bảo tàng:\nHiện vật phù hợp:\n${context || "Không có hiện vật phù hợp."}\nTriển lãm đang hoạt động: ${facts.exhibitions.join("; ") || "không có"}.\nLượt khách ghi nhận hôm nay: ${todayVisitors}; 30 ngày gần nhất: ${monthVisitors}.\nGiá vé tiêu chuẩn: ${facts.ticketPriceVnd} VND. Giờ mở cửa: ${facts.openingTime}–${facts.closingTime}.\n\nCâu hỏi: ${parsed.data.message}` },
           ],
         }),
         signal: AbortSignal.timeout(12000),

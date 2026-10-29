@@ -1,7 +1,7 @@
 import { Role } from "@prisma/client";
 import { z } from "zod";
 import { requireRole } from "@/lib/auth";
-import { museumFacts } from "@/lib/museum-data";
+import { prisma } from "@/lib/prisma";
 
 const requestSchema = z.object({ minutes: z.number().int().min(30).max(300), interests: z.array(z.string()).min(1).max(6) });
 
@@ -31,5 +31,7 @@ export async function POST(request: Request) {
     }
   }
   if (route.length === 0) route.push({ name: "Không gian Đông Sơn", duration: Math.min(35, parsed.data.minutes) });
-  return Response.json({ route, totalMinutes: route.reduce((sum, stop) => sum + stop.duration, 0), estimatedCrowd: museumFacts.visitorToday > 1000 ? "Đông vào đầu giờ chiều" : "Vừa phải" });
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const visitorCount = await prisma.visitorVisit.count({ where: { visitedAt: { gte: today } } }).catch(() => 0);
+  return Response.json({ route, totalMinutes: route.reduce((sum, stop) => sum + stop.duration, 0), estimatedCrowd: visitorCount > 1000 ? "Đông vào đầu giờ chiều" : visitorCount > 300 ? "Lượng khách trung bình" : "Vừa phải", visitorCount });
 }
