@@ -1,6 +1,7 @@
 node_modules
 .next
 .next-demo
+.next-notifications
 out
 .env
 .env.*.local

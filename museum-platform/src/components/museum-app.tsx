@@ -18,6 +18,7 @@ type Employee = { id: string; name: string; email: string; role: Role; active: b
 type Tour = { id: string; title: string; startsAt: string; durationMins: number; capacity: number; guide?: { name: string } | null; route: string[] };
 type Analytics = { totalVisits: number; ticketCount: number; ticketRevenueVnd: number; activeExhibitions: number; visitsByDay: { date: string; count: number }[]; visitsByHour: { hour: string; count: number }[] };
 type MuseumSettings = { ticketPriceVnd: number; openingTime: string; closingTime: string; paymentMode: "demo" | "vnpay" };
+type NotificationItem = { title: string; detail: string; page: string };
 
 const demoAccounts = [
   { role: "ADMIN" as Role, email: "admin@musea.vn", label: "Quản trị" },
@@ -46,6 +47,8 @@ export default function MuseumApp() {
   const [email, setEmail] = useState("admin@musea.vn");
   const [password, setPassword] = useState("Musea@2026");
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const notificationPanelRef = useRef<HTMLDivElement>(null);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [tickets, setTickets] = useState<TicketRecord[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -98,6 +101,22 @@ export default function MuseumApp() {
       .catch(() => { setNotice("Không truy cập được camera. Hãy kiểm tra quyền camera hoặc dùng tra cứu ảnh."); setNoticeType("error"); setCameraOn(false); });
     return () => stream?.getTracks().forEach((track) => track.stop());
   }, [cameraOn]);
+
+  useEffect(() => {
+    if (!notificationsOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!notificationPanelRef.current?.contains(event.target as Node)) setNotificationsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setNotificationsOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [notificationsOpen]);
 
   const notify = (message: string, type: "success" | "error" | "info" = "success") => {
     setNotice(message);
@@ -227,6 +246,16 @@ export default function MuseumApp() {
 
   const filteredArtifacts = artifacts.filter((item) => `${item.name} ${item.code} ${item.period} ${item.category}`.toLocaleLowerCase("vi-VN").includes(query.toLocaleLowerCase("vi-VN")));
   const displayedArtifacts = user.role === "ADMIN" && page === "approvals" ? artifacts.filter((item) => item.status === "PENDING") : filteredArtifacts;
+  const notificationItems: NotificationItem[] = [];
+  const pendingArtifacts = artifacts.filter((item) => item.status === "PENDING").length;
+  const validTickets = tickets.filter((ticket) => ticket.status === "VALID").length;
+  const pendingTickets = tickets.filter((ticket) => ticket.status === "PENDING_PAYMENT").length;
+  const conservationArtifacts = artifacts.filter((item) => item.status === "CONSERVATION").length;
+  if (user.role === "ADMIN" && pendingArtifacts) notificationItems.push({ title: `${pendingArtifacts} hồ sơ hiện vật chờ duyệt`, detail: "Mở hàng đợi để xem và xử lý hồ sơ.", page: "approvals" });
+  if (user.role === "STAFF" && validTickets) notificationItems.push({ title: `${validTickets} vé còn hiệu lực`, detail: "Có thể kiểm tra vé tại cổng.", page: "scan" });
+  if (user.role === "STAFF" && conservationArtifacts) notificationItems.push({ title: `${conservationArtifacts} hiện vật đang bảo tồn`, detail: "Xem hồ sơ và cập nhật nhật ký bảo tồn.", page: "conservation" });
+  if (user.role === "CUSTOMER" && pendingTickets) notificationItems.push({ title: `${pendingTickets} vé chờ thanh toán`, detail: "Hoàn tất thanh toán để vé có hiệu lực.", page: "tickets" });
+  if (user.role === "CUSTOMER" && validTickets) notificationItems.push({ title: `${validTickets} vé đang có hiệu lực`, detail: "Mở vé của bạn để xem mã QR.", page: "tickets" });
 
   return (
     <main className="min-h-screen bg-[#f3f5f8] text-slate-800">
@@ -246,7 +275,7 @@ export default function MuseumApp() {
         </aside>
 
         <section className="main-column">
-          <header className="topbar"><div className="crumbs"><span>Không gian bảo tàng</span><ArrowRight size={13} /><strong>{pageLabels[page] || "MUSEA"}</strong></div><div className="topbar-actions"><span className="live-chip"><i /> ĐANG HOẠT ĐỘNG</span><button className="icon-quiet notification" title="Thông báo"><Bell size={18} /><i /></button><span className="top-divider" /><span className="top-user">{user.name}</span></div></header>
+          <header className="topbar"><div className="crumbs"><span>Không gian bảo tàng</span><ArrowRight size={13} /><strong>{pageLabels[page] || "MUSEA"}</strong></div><div className="topbar-actions"><span className="live-chip"><i /> ĐANG HOẠT ĐỘNG</span><div className="notification-wrap" ref={notificationPanelRef}><button className="icon-quiet notification" type="button" title="Thông báo" aria-label="Mở thông báo" aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen((open) => !open)}><Bell size={18} />{notificationItems.length > 0 && <i />}</button>{notificationsOpen && <section className="notification-panel" role="dialog" aria-label="Thông báo"><div className="notification-panel-heading"><div><strong>Thông báo</strong><small>{notificationItems.length ? `${notificationItems.length} mục cần chú ý` : "Cập nhật từ hệ thống"}</small></div><button className="notification-close" type="button" aria-label="Đóng thông báo" onClick={() => setNotificationsOpen(false)}>×</button></div>{notificationItems.length ? <div className="notification-list">{notificationItems.map((item, index) => <button className="notification-item" type="button" key={`${item.title}-${index}`} onClick={() => { setPage(item.page); setNotificationsOpen(false); }}><span className="notification-item-icon"><Bell size={15} /></span><span><strong>{item.title}</strong><small>{item.detail}</small></span><ArrowRight size={14} /></button>)}</div> : <p className="notification-empty">Hiện chưa có thông báo mới.</p>}</section>}</div><span className="top-divider" /><span className="top-user">{user.name}</span></div></header>
           <div className="page-content">
             {page === "overview" && <Dashboard role={user.role} artifacts={artifacts} tickets={tickets} employees={employees} tours={tours} analytics={analytics} museumSettings={museumSettings} navigate={setPage} />}
             {(page === "artifacts" || page === "approvals" || page === "catalog" || page === "conservation") && <ArtifactWorkspace role={user.role} page={page} artifacts={displayedArtifacts} query={query} setQuery={setQuery} onCreate={createArtifact} onReview={reviewArtifact} onConservation={logConservation} />}
