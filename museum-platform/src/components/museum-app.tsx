@@ -474,7 +474,49 @@ function RouteWorkspace({ minutes, setMinutes, interests, setInterests, route, o
 }
 
 function VisualWorkspace({ imagePreview, setImagePreview, cameraOn, setCameraOn, videoRef }: { imagePreview: string; setImagePreview: (url: string) => void; cameraOn: boolean; setCameraOn: (value: boolean) => void; videoRef: React.RefObject<HTMLVideoElement | null> }) {
-  return <><PageHeading eyebrow="AI VISUAL SEARCH · BẢN THỬ NGHIỆM" title="Nhận diện hiện vật qua hình ảnh" subtitle="Tải ảnh hoặc mở camera để xem trước luồng nhận diện. Kết quả hiện là mockup giao diện." /><div className="visual-search-layout"><div className="visual-dropzone">{cameraOn ? <video ref={videoRef} autoPlay playsInline muted className="camera-preview" /> : imagePreview ? <img className="upload-preview" src={imagePreview} alt="Ảnh hiện vật tải lên" /> : <div className="upload-empty"><span><ImagePlus size={28} /></span><strong>Đưa hình ảnh hiện vật vào đây</strong><small>JPG, PNG hoặc WEBP · tối đa 10 MB</small></div>}<div className="upload-actions"><label className="button-secondary"><ImagePlus size={15} />Tải ảnh<input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) setImagePreview(URL.createObjectURL(file)); setCameraOn(false); }} /></label><button className="button-secondary" onClick={() => { setImagePreview(""); setCameraOn(!cameraOn); }}><Camera size={15} />{cameraOn ? "Tắt camera" : "Mở camera"}</button></div></div><aside className="panel-card visual-result"><span className="gold-icon large"><Sparkles size={21} /></span><span className="eyebrow">KẾT QUẢ NHẬN DIỆN</span><h2>{imagePreview || cameraOn ? "Đã nhận hình ảnh" : "Sẵn sàng phân tích"}</h2><p>{imagePreview || cameraOn ? "Mockup gợi ý: hiện vật có thể thuộc nhóm gốm sứ hoặc điêu khắc. Mô hình thị giác chưa được kết nối." : "Chọn một hình ảnh để xem trạng thái và gợi ý nhận diện mẫu."}</p><div className="confidence-track"><span><i style={{ width: imagePreview || cameraOn ? "72%" : "0%" }} /></span><small>Độ tin cậy mockup <b>{imagePreview || cameraOn ? "72%" : "—"}</b></small></div><button className="button-primary wide" disabled={!imagePreview && !cameraOn}><Search size={15} />Tra cứu trong bộ sưu tập</button><small className="form-footnote">Không tải ảnh lên server ở bản demo này.</small></aside></div></>;
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [summary, setSummary] = useState("");
+  const [matches, setMatches] = useState<{ artifact: Artifact; reason: string; score: number }[]>([]);
+
+  const analyze = async () => {
+    setError("");
+    let image = imagePreview;
+    if (cameraOn) {
+      const video = videoRef.current;
+      if (!video?.videoWidth || !video.videoHeight) {
+        setError("Camera chưa sẵn sàng. Hãy chờ hình ảnh hiện lên rồi thử lại.");
+        return;
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.min(video.videoWidth, 1280);
+      canvas.height = Math.round(video.videoHeight * canvas.width / video.videoWidth);
+      canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
+      image = canvas.toDataURL("image/jpeg", 0.82);
+      setImagePreview(image);
+    }
+    if (!image.startsWith("data:image/")) {
+      setError("Hãy chọn ảnh JPG, PNG hoặc WEBP trước khi tìm.");
+      return;
+    }
+    setBusy(true);
+    setSummary("");
+    setMatches([]);
+    try {
+      const result = await api<{ summary: string; matches: { artifact: Artifact; reason: string; score: number }[] }>("/api/ai/visual-search", {
+        method: "POST",
+        body: JSON.stringify({ image }),
+      });
+      setSummary(result.summary);
+      setMatches(result.matches);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Không thể phân tích ảnh.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return <><PageHeading eyebrow="AI VISUAL SEARCH" title="Tìm hiện vật bằng hình ảnh" subtitle="Tải ảnh hoặc mở camera. AI sẽ đề xuất các hồ sơ gần phù hợp trong bộ sưu tập." /><div className="visual-search-layout"><div className="visual-dropzone">{cameraOn ? <video ref={videoRef} autoPlay playsInline muted className="camera-preview" /> : imagePreview ? <img className="upload-preview" src={imagePreview} alt="Ảnh hiện vật tải lên" /> : <div className="upload-empty"><span><ImagePlus size={28} /></span><strong>Đưa hình ảnh hiện vật vào đây</strong><small>JPG, PNG hoặc WEBP · tối đa 5 MB</small></div>}<div className="upload-actions"><label className="button-secondary"><ImagePlus size={15} />Tải ảnh<input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; if (file.size > 5 * 1024 * 1024) { setError("Ảnh cần có dung lượng dưới 5 MB."); return; } const reader = new FileReader(); reader.onload = () => { setImagePreview(String(reader.result)); setError(""); setSummary(""); setMatches([]); }; reader.readAsDataURL(file); setCameraOn(false); }} /></label><button className="button-secondary" type="button" onClick={() => { setImagePreview(""); setError(""); setSummary(""); setMatches([]); setCameraOn(!cameraOn); }}><Camera size={15} />{cameraOn ? "Tắt camera" : "Mở camera"}</button></div></div><aside className="panel-card visual-result"><span className="gold-icon large"><Sparkles size={21} /></span><span className="eyebrow">KẾT QUẢ ĐỐI CHIẾU</span><h2>{busy ? "Đang phân tích ảnh…" : summary ? "Gợi ý từ bộ sưu tập" : "Sẵn sàng tìm kiếm"}</h2><p>{summary || "Ảnh được gửi đến AI để phân tích đặc điểm và so sánh với hồ sơ hiện vật đã duyệt."}</p>{error && <div className="scan-result failure" role="alert">{error}</div>}<button className="button-primary wide" type="button" onClick={analyze} disabled={busy || (!imagePreview && !cameraOn)}><Search size={15} />{busy ? "Đang tìm…" : "Tìm trong bộ sưu tập"}</button>{matches.length > 0 ? <div className="visual-matches">{matches.map(({ artifact, reason, score }) => <article className="visual-match" key={artifact.id}>{artifact.imageUrl && <img src={artifact.imageUrl} alt="" />}<div><strong>{artifact.name}</strong><small>{artifact.code} · {artifact.category} · phù hợp {score}%</small><p>{reason}</p></div></article>)}</div> : summary && <p className="form-footnote">Chưa tìm thấy hồ sơ đủ tương đồng trong danh mục hiện tại.</p>}<small className="form-footnote">Kết quả là gợi ý AI, cần nhân viên xác minh. Ảnh chỉ được gửi để phân tích và không lưu trong hệ thống.</small></aside></div></>;
 }
 
 function SettingsWorkspace() {
